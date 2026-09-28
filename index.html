@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PML Snagging">
+<meta name="theme-color" content="#0E0602">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="icon" href="assets/icon-180.png">
+<title>PML Snagging</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Montserrat:wght@600;700;800&display=swap');
+:root{
+  --ff:'DM Sans','Segoe UI',Tahoma,sans-serif;
+  --ffh:'Montserrat','DM Sans','Segoe UI',sans-serif;
+  --ffm:'DM Mono','Courier New',monospace;
+  --black:#0E0602;--black2:#1d1510;
+  --yellow:#FCBF2A;--yellow-deep:#E5A80F;--yellow-soft:#FFF6DC;
+  --bg:#F5F3EE;--card:#fff;
+  --ink:#1c1410;--muted:#6f675e;--border:#e4dfd5;
+  --red:#C0392B;--amber:#d97706;--blue:#2563eb;--green:#15803d;
+  --radius:14px;
+  --shadow:0 1px 2px rgba(14,6,2,.06),0 6px 20px rgba(14,6,2,.06);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--ff);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit}
+
+/* top bar */
+.topbar{background:var(--black);border-bottom:3px solid var(--yellow);padding:10px 18px;padding-top:calc(10px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;flex-shrink:0}
+.brand img{height:24px;display:block}
+.brand-sub{font-family:var(--ffh);font-weight:700;font-size:10.5px;letter-spacing:2.2px;text-transform:uppercase;color:var(--yellow);border-left:1px solid #4a3f36;padding-left:12px}
+.crumbs{color:#bfb6aa;font-size:13px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex:1}
+.crumbs a{color:#f3efe8;text-decoration:none}
+.crumbs a:hover{color:var(--yellow)}
+.top-actions{display:flex;gap:8px;flex-shrink:0}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border:none;border-radius:10px;font-family:var(--ffh);font-size:12.5px;font-weight:700;cursor:pointer;min-height:40px;text-decoration:none;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.btn:active{transform:translateY(1px)}
+.btn-y{background:var(--yellow);color:var(--black)}
+.btn-y:hover{background:var(--yellow-deep)}
+.btn-dark{background:var(--black);color:#fff}
+.btn-dark:hover{background:#2a201a}
+.btn-ghost{background:transparent;color:#e9e3d9;border:1px solid #4a3f36}
+.btn-ghost:hover{background:#2a201a}
+.btn-o{background:#fff;color:var(--ink);border:1.5px solid var(--border)}
+.btn-o:hover{border-color:var(--black)}
+.btn-danger{background:#fff;color:var(--red);border:1.5px solid #f3c4bf}
+.btn-danger:hover{background:#fdecea}
+.btn-sm{min-height:32px;padding:5px 10px;font-size:11.5px}
+.btn.on{background:var(--yellow);color:var(--black);border-color:var(--yellow)}
+.icon-btn{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--border);background:#fff;cursor:pointer;font-size:18px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+
+.main{max-width:1180px;margin:0 auto;padding:22px 16px 60px}
+h1{font-family:var(--ffh);font-size:22px;font-weight:800;letter-spacing:-.3px}
+h2{font-family:var(--ffh);font-size:15px;font-weight:700}
+.muted{color:var(--muted)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.spacer{flex:1}
+.page-head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.page-head p{font-size:13px;margin-top:4px}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+
+/* job cards */
+.job-card{padding:16px 16px 14px;border-left:5px solid var(--yellow);cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s}
+.job-card:hover{box-shadow:0 8px 28px rgba(14,6,2,.12)}
+.job-card .ref{font-family:var(--ffm);font-size:11.5px;color:var(--muted)}
+.job-card h3{font-family:var(--ffh);font-size:16px;font-weight:700}
+.job-card .addr{font-size:12.5px;color:var(--muted)}
+.stats{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:99px;background:#f1ede5;color:var(--ink);white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+
+/* job hero + tabs */
+.hero{background:var(--black);background-image:radial-gradient(600px 200px at 90% 0,rgba(252,191,42,.18),transparent);color:#fff;border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.hero .ref{font-family:var(--ffm);font-size:12px;color:var(--yellow)}
+.hero h1{color:#fff;margin:2px 0}
+.hero .addr{font-size:13px;color:#c9c0b4}
+.hero .kpis{display:flex;gap:18px;margin-left:auto}
+.kpi b{display:block;font-family:var(--ffh);font-size:22px;color:var(--yellow)}
+.kpi span{font-size:11px;color:#c9c0b4;text-transform:uppercase;letter-spacing:1px}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.tab{padding:10px 14px;font-family:var(--ffh);font-weight:700;font-size:13px;color:var(--muted);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tab.on{color:var(--ink);border-color:var(--yellow)}
+
+/* drawing cards */
+.dwg-card{overflow:hidden;cursor:pointer}
+.dwg-card .thumb{aspect-ratio:3/2;background:#fafaf7 center/contain no-repeat;border-bottom:1px solid var(--border);position:relative}
+.dwg-card .thumb .lvl{position:absolute;top:8px;left:8px;background:var(--black);color:var(--yellow);font-family:var(--ffh);font-weight:700;font-size:11px;padding:4px 8px;border-radius:6px}
+.dwg-card .body{padding:10px 12px;display:flex;align-items:center;gap:8px}
+.dwg-card .body b{font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* viewer page */
+body.viewer-mode{overflow:hidden}
+.vwrap{position:fixed;inset:0;top:var(--tb,56px);display:flex;flex-direction:column;background:#2b2621}
+.vbar{background:#fff;border-bottom:1px solid var(--border);padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.vbar select{height:40px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:#fff;max-width:230px}
+.vbody{flex:1;display:flex;min-height:0;position:relative}
+.viewer{flex:1;position:relative;overflow:hidden;touch-action:none;cursor:grab;background:#3a342e}
+.viewer.adding{cursor:crosshair}
+.viewer.dragging{cursor:grabbing}
+.viewer img.plan{position:absolute;left:0;top:0;transform-origin:0 0;user-select:none;-webkit-user-drag:none;box-shadow:0 0 0 1px rgba(0,0,0,.2),0 10px 40px rgba(0,0,0,.4);background:#fff;image-rendering:auto}
+.pins{position:absolute;inset:0;pointer-events:none}
+.pin{position:absolute;width:30px;height:38px;transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;border:none;background:none;padding:0;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+.pin svg{display:block;width:30px;height:38px}
+.pin span{position:absolute;top:5px;left:0;width:30px;text-align:center;font:700 11px var(--ffh);color:#fff}
+.pin.sel{z-index:5;transform:translate(-50%,-100%) scale(1.3)}
+.pin.dim{opacity:.25}
+.zoom-ctl{position:absolute;right:12px;bottom:calc(12px + var(--safe-bottom));display:flex;flex-direction:column;gap:6px;z-index:4}
+.hint{position:absolute;left:50%;top:12px;pointer-events:none;transform:translateX(-50%);background:var(--yellow);color:var(--black);font:700 12.5px var(--ffh);padding:8px 14px;border-radius:99px;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:4;display:none;white-space:nowrap}
+.viewer.adding ~ .hint,.hint.show{display:block}
+.legend{position:absolute;left:12px;bottom:calc(12px + var(--safe-bottom));background:rgba(255,255,255,.94);border-radius:10px;padding:8px 10px;font-size:11.5px;display:flex;gap:10px;flex-wrap:wrap;z-index:4;max-width:calc(100% - 90px)}
+
+/* snag drawer */
+.drawer{width:390px;max-width:100%;background:#fff;border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.drawer[hidden]{display:none}
+.dhead{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.dhead .no{font:800 18px var(--ffh)}
+.dbody{padding:14px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px}
+.dfoot{padding:10px 14px;padding-bottom:calc(10px + var(--safe-bottom));border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap}
+.f label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:5px}
+.f input,.f select,.f textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:9px 11px;background:#fff;font-size:14px;min-height:42px}
+.f textarea{min-height:72px;resize:vertical}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:var(--yellow);box-shadow:0 0 0 3px rgba(252,191,42,.25)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:none;background:#fff;padding:8px 4px;font:700 11.5px var(--ffh);cursor:pointer;border-right:1px solid var(--border);min-height:40px}
+.seg button:last-child{border-right:none}
+.seg button.on{color:#fff}
+.photos{display:flex;gap:8px;flex-wrap:wrap}
+.ph{width:78px;height:78px;border-radius:10px;background:#eee center/cover;position:relative;cursor:zoom-in}
+.ph button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:none;background:var(--black);color:#fff;font-size:13px;cursor:pointer}
+.ph-add{width:78px;height:78px;border-radius:10px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;gap:2px}
+.ph-add b{font-size:22px;line-height:1}
+.meta{font-size:11.5px;color:var(--muted)}
+
+/* snag list */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filters select,.filters input{height:40px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:#fff}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px;border-bottom:2px solid var(--border);white-space:nowrap}
+.tbl td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl tr.click{cursor:pointer}
+.tbl tr.click:hover td{background:#fbf9f4}
+.tbl .no{font:700 13px var(--ffm)}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;color:#fff;white-space:nowrap}
+.tbl-wrap{overflow-x:auto}
+
+/* library */
+.lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.lib-card{padding:14px}
+.lib-card .hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.lib-card .hd input{font:700 15px var(--ffh);border:1.5px solid transparent;border-radius:8px;padding:4px 6px;flex:1;min-width:0}
+.lib-card .hd input:hover,.lib-card .hd input:focus{border-color:var(--border);outline:none}
+.swatch{width:26px;height:26px;border-radius:7px;border:none;cursor:pointer;flex-shrink:0;padding:0}
+.types{display:flex;flex-direction:column;gap:6px}
+.type-row{display:flex;gap:6px;align-items:center}
+.type-row input{flex:1;border:1.5px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px;min-width:0}
+.x{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--border);background:#fff;cursor:pointer;color:var(--muted);flex-shrink:0}
+.x:hover{color:var(--red);border-color:#f3c4bf}
+.tradechecks{display:flex;flex-wrap:wrap;gap:6px}
+.tradechecks label{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:5px 9px;border-radius:99px;border:1.5px solid var(--border);cursor:pointer;text-transform:none;letter-spacing:0;color:var(--ink);margin:0}
+.tradechecks input{width:auto;min-height:0}
+.tradechecks label.on{background:var(--yellow-soft);border-color:var(--yellow)}
+.people .type-row input{font-size:12.5px}
+
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(14,6,2,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:16px;width:460px;max-width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.modal .mh{padding:16px 18px;border-bottom:3px solid var(--yellow);font:800 16px var(--ffh)}
+.modal .mb{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.modal .mf{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+.lightbox img{max-width:94vw;max-height:92vh;border-radius:8px}
+.toast{position:fixed;bottom:calc(20px + var(--safe-bottom));left:50%;transform:translateX(-50%);background:var(--black);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:400;border-left:4px solid var(--yellow)}
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty b{display:block;font:700 16px var(--ffh);color:var(--ink);margin-bottom:6px}
+.demo-note{background:var(--yellow-soft);border:1px solid #f5dc97;border-radius:12px;padding:10px 14px;font-size:12.5px;margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* report */
+#report{display:none;background:#e9e6e0;min-height:100%}
+body.show-report #app,body.show-report .topbar{display:none}
+body.show-report #report{display:block}
+.rbar{position:sticky;top:0;background:var(--black);border-bottom:3px solid var(--yellow);padding:10px 16px;display:flex;gap:8px;align-items:center;z-index:10;color:#fff}
+.sheet{width:210mm;min-height:297mm;margin:16px auto;background:#fff;padding:12mm 12mm 14mm;box-shadow:0 4px 30px rgba(0,0,0,.15);font-size:10pt;color:#111}
+.r-head{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--yellow);padding-bottom:8px;margin-bottom:10px}
+.r-head img{height:30px}
+.r-head .t{font:800 17pt var(--ffh);letter-spacing:-.3px}
+.r-head .s{font-size:9pt;color:#555}
+.r-head .d{margin-left:auto;text-align:right;font-size:8.5pt;color:#555}
+.r-info{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ccc;margin-bottom:10px}
+.r-info div{padding:5px 8px;border-bottom:1px solid #e3e3e3;font-size:9pt}
+.r-info div:nth-child(odd){border-right:1px solid #e3e3e3}
+.r-info b{display:block;font-size:7pt;text-transform:uppercase;letter-spacing:.8px;color:#777}
+.r-sum{display:flex;gap:8px;margin-bottom:12px}
+.r-sum div{flex:1;border:1px solid #ddd;border-top:4px solid;padding:6px 8px;border-radius:4px}
+.r-sum b{font:800 16pt var(--ffh);display:block}
+.r-sum span{font-size:7.5pt;text-transform:uppercase;letter-spacing:.8px;color:#666}
+.r-h2{font:800 11pt var(--ffh);margin:12px 0 6px;padding:4px 8px;background:var(--black);color:#fff;border-left:5px solid var(--yellow)}
+.r-tbl{width:100%;border-collapse:collapse;font-size:8.5pt}
+.r-tbl th{background:#f1ede5;text-align:left;padding:4px 6px;border:1px solid #d8d2c6;font-size:7.5pt;text-transform:uppercase;letter-spacing:.5px}
+.r-tbl td{padding:4px 6px;border:1px solid #e0dbd1;vertical-align:top}
+.r-tbl tr{break-inside:avoid}
+.r-ov{break-inside:avoid;margin-bottom:10px}
+.r-ov img{width:100%;border:1px solid #ccc;display:block}
+.r-ov .cap{font-size:8pt;color:#555;margin-top:3px}
+.r-snag{border:1px solid #d8d2c6;border-radius:6px;margin-bottom:9px;break-inside:avoid;overflow:hidden}
+.r-snag .sh{display:flex;align-items:center;gap:8px;padding:5px 8px;background:#f7f4ee;border-bottom:1px solid #e0dbd1}
+.r-snag .sh .n{font:800 11pt var(--ffh)}
+.r-snag .sh .ty{font-weight:700;font-size:10pt;flex:1}
+.r-snag .sb{display:grid;grid-template-columns:68mm 1fr;gap:8px;padding:8px}
+.r-snag .sb img{width:100%;border:1px solid #ccc;display:block}
+.r-snag .kv{display:grid;grid-template-columns:30mm 1fr;font-size:8.8pt;row-gap:2px}
+.r-snag .kv b{color:#666;font-weight:600;font-size:8pt}
+.r-snag .desc{grid-column:1/-1;margin-top:4px;padding:5px 7px;background:#fafaf7;border-left:3px solid var(--yellow);font-size:9pt}
+.r-snag .rp{display:flex;gap:6px;padding:0 8px 8px;flex-wrap:wrap}
+.r-snag .rp img{height:36mm;border:1px solid #ccc;border-radius:3px}
+.r-sign{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;break-inside:avoid}
+.r-sign div{border-top:1px solid #333;padding-top:4px;font-size:8.5pt;color:#555;margin-top:28px}
+.r-foot{margin-top:12px;font-size:7.5pt;color:#777;display:flex;justify-content:space-between;border-top:1px solid #ddd;padding-top:5px}
+
+@media print{
+  @page{size:A4 portrait;margin:0}
+  body{background:#fff}
+  .rbar{display:none}
+  #report{background:#fff}
+  .sheet{margin:0;box-shadow:none;width:auto;min-height:0}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media (max-width:760px){
+  .brand-sub,.lbl-m{display:none}
+  .hero .kpis{margin-left:0}
+  .drawer{position:absolute;left:0;right:0;bottom:0;width:auto;max-height:72%;border-left:none;border-top:3px solid var(--yellow);border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.35);z-index:6}
+  .vbar select{max-width:150px}
+  .vbar .lbl{display:none}
+  .sheet{width:100%;min-height:0;padding:14px}
+  .r-snag .sb{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/"><img src="assets/logo-light.png" alt="PML"><span class="brand-sub">Snagging</span></a>
+  <div class="crumbs" id="crumbs"></div>
+  <div class="top-actions">
+    <a class="btn btn-ghost btn-sm" href="#/library">⚙<span class="lbl-m"> Contractors &amp; snag library</span></a>
+  </div>
+</header>
+<div id="app"></div>
+<div id="report"></div>
+
+<script>
+/* ───────────── storage (IndexedDB, works offline) ───────────── */
+const DB=(()=>{
+  let dbp;
+  const open=()=>dbp||(dbp=new Promise((res,rej)=>{
+    const r=indexedDB.open('pml-snagging-demo',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('kv');
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+  }));
+  const tx=async(mode,fn)=>{const db=await open();return new Promise((res,rej)=>{const t=db.transaction('kv',mode);const q=fn(t.objectStore('kv'));t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error);});};
+  return{get:k=>tx('readonly',s=>s.get(k)),set:(k,v)=>tx('readwrite',s=>s.put(v,k)),del:k=>tx('readwrite',s=>s.delete(k)),clear:()=>tx('readwrite',s=>s.clear())};
+})();
+
+let S=null;
+const uid=()=>Math.random().toString(36).slice(2,10);
+let saveT;
+function save(){clearTimeout(saveT);saveT=setTimeout(()=>DB.set('state',S),200);}
+const imgCache={};
+async function getImg(k){if(!k)return null;if(!(k in imgCache))imgCache[k]=await DB.get('img:'+k);return imgCache[k];}
+async function putImg(url){const k=uid();imgCache[k]=url;await DB.set('img:'+k,url);return k;}
+const elCache={};
+function loadEl(url){return elCache[url]||(elCache[url]=new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;}));}
+
+/* ───────────── helpers ───────────── */
+const $=s=>document.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const STATUSES=[
+  {k:'open',label:'Open',c:'#C0392B'},
+  {k:'progress',label:'In progress',c:'#d97706'},
+  {k:'ready',label:'Ready to inspect',c:'#2563eb'},
+  {k:'closed',label:'Closed',c:'#15803d'}];
+const ST=Object.fromEntries(STATUSES.map(s=>[s.k,s]));
+const PRIORITIES=['Low','Medium','High'];
+const fmtDate=v=>{if(!v)return'—';const d=new Date(v);return isNaN(d)?v:d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
+const today=()=>new Date().toISOString().slice(0,10);
+const snagNo=n=>'S-'+String(n).padStart(3,'0');
+const job=id=>S.jobs.find(j=>j.id===id);
+const trade=id=>S.trades.find(t=>t.id===id);
+const contractor=id=>S.contractors.find(c=>c.id===id);
+const statusPill=k=>`<span class="status" style="background:${ST[k]?.c||'#888'}">${esc(ST[k]?.label||k)}</span>`;
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.append(t);setTimeout(()=>t.remove(),2400);}
+function lightbox(url){const d=document.createElement('div');d.className='lightbox';d.innerHTML=`<img src="${url}">`;d.onclick=()=>d.remove();document.body.append(d);}
+
+function modal(title,body,{ok='Save',danger=false}={}){
+  return new Promise(res=>{
+    const bg=document.createElement('div');bg.className='modal-bg';
+    bg.innerHTML=`<div class="modal"><div class="mh">${esc(title)}</div><div class="mb">${body}</div>
+      <div class="mf"><button class="btn btn-o" data-x>Cancel</button><button class="btn ${danger?'btn-danger':'btn-y'}" data-ok>${esc(ok)}</button></div></div>`;
+    const close=v=>{bg.remove();res(v);};
+    bg.querySelector('[data-x]').onclick=()=>close(null);
+    bg.onclick=e=>{if(e.target===bg)close(null);};
+    bg.querySelector('[data-ok]').onclick=()=>{const v={};bg.querySelectorAll('[name]').forEach(i=>v[i.name]=i.type==='checkbox'?i.checked:i.value);close(v);};
+    document.body.append(bg);
+    bg.querySelector('input,select,textarea')?.focus();
+  });
+}
+const confirmBox=(t,msg,ok='Delete')=>modal(t,`<p style="font-size:14px">${msg}</p>`,{ok,danger:true});
+
+async function downscale(file,max=1600,q=.82){
+  const url=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(file);});
+  const img=await loadEl(url);
+  const s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*s);c.height=Math.round(img.naturalHeight*s);
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
+  delete elCache[url];
+  return c.toDataURL('image/jpeg',q);
+}
+function pickFiles(accept,multiple=false,capture=false){
+  return new Promise(res=>{const i=document.createElement('input');i.type='file';i.accept=accept;i.multiple=multiple;if(capture)i.setAttribute('capture','environment');i.onchange=()=>res([...i.files]);i.click();});
+}
+
+/* ───────────── sample GA drawing (generated, for the demo only) ───────────── */
+function makeGA(level){
+  const W=3000,H=2000,L=[];
+  const line=(x1,y1,x2,y2,w=3,c='#222',dash='')=>L.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}" ${dash?`stroke-dasharray="${dash}"`:''}/>`);
+  const rect=(x,y,w,h,sw=3,fill='none',c='#222')=>L.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${c}" stroke-width="${sw}"/>`);
+  const text=(x,y,t,s=22,wgt=600,a='middle',c='#333')=>L.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${s}" font-weight="${wgt}" text-anchor="${a}" fill="${c}">${t}</text>`);
+  const door=(x,y,r,rot)=>L.push(`<path d="M0 0 L${r} 0 A${r} ${r} 0 0 1 0 ${r} Z" fill="none" stroke="#555" stroke-width="2" transform="translate(${x} ${y}) rotate(${rot})"/>`);
+  L.push(`<rect width="${W}" height="${H}" fill="#fff"/>`);
+  const x0=220,y0=240,x1=2560,y1=1640;
+  // grid
+  const gx=['A','B','C','D','E','F','G','H'],gy=['1','2','3','4','5'];
+  gx.forEach((g,i)=>{const x=x0+i*(x1-x0)/7;line(x,150,x,y1+60,1.5,'#9aa','18 10');L.push(`<circle cx="${x}" cy="120" r="26" fill="#fff" stroke="#566" stroke-width="2"/>`);text(x,129,g,24,700);});
+  gy.forEach((g,i)=>{const y=y0+i*(y1-y0)/4;line(140,y,x1+60,y,1.5,'#9aa','18 10');L.push(`<circle cx="110" cy="${y}" r="26" fill="#fff" stroke="#566" stroke-width="2"/>`);text(110,y+9,g,24,700);});
+  // outer walls
+  rect(x0,y0,x1-x0,y1-y0,14,'none','#111');
+  // corridor
+  const cy0=880,cy1=1000;
+  line(x0+300,cy0,x1-300,cy0,8);line(x0+300,cy1,x1-300,cy1,8);
+  text((x0+x1)/2,cy0+72,'CORRIDOR',26,700,'middle','#667');
+  // stair cores
+  [[x0,x0+300],[x1-300,x1]].forEach(([a,b],k)=>{
+    rect(a,cy0-200,300,520,8,'#f4f4f0');
+    for(let i=0;i<12;i++)line(a+40,cy0-160+i*36,b-40,cy0-160+i*36,1.5,'#888');
+    line(a+150,cy0-160,a+150,cy0+236,2,'#888');
+    text((a+b)/2,cy0+300,k?'STAIR 02':'STAIR 01',22,700);
+  });
+  rect(1330,cy0-200,160,200,6,'#eef2f5');text(1410,cy0-90,'LIFT',20,700);
+  // apartments
+  const n=5,aw=(x1-x0-600)/n;
+  for(let r=0;r<2;r++){
+    const ya=r?cy1:y0,yb=r?y1:cy0;
+    for(let i=0;i<n;i++){
+      const ax=x0+300+i*aw;
+      if(i>0)line(ax,ya,ax,yb,8);
+      const bx=ax+aw*0.55,mid=(ya+yb)/2;
+      line(bx,ya,bx,yb,4);
+      line(bx,mid,ax+aw,mid,4);
+      line(ax,r?ya+200:yb-200,bx-120,r?ya+200:yb-200,3);
+      const no=`${level}.${String(r*n+i+1).padStart(2,'0')}`;
+      text(ax+aw*0.28,(ya+yb)/2-10,'APT '+no,26,800,'middle','#222');
+      text(ax+aw*0.28,(ya+yb)/2+22,'LIVING / KITCHEN',16,600,'middle','#777');
+      text(ax+aw*0.775,r?ya+(mid-ya)/2:mid+(yb-mid)/2,'BEDROOM',16,600,'middle','#777');
+      text(ax+aw*0.775,r?mid+(yb-mid)/2:ya+(mid-ya)/2,'BATH',16,600,'middle','#777');
+      door(ax+60,r?cy1:cy0,70,r?0:-90);
+      // windows
+      const wy=r?y1:y0;line(ax+60,wy,ax+aw-60,wy,6,'#6fa8c7');
+    }
+  }
+  // title block
+  const tx=2600,ty=1500;
+  rect(tx,ty,360,460,3,'#fff');
+  line(tx,ty+90,tx+360,ty+90,2);line(tx,ty+170,tx+360,ty+170,2);line(tx,ty+250,tx+360,ty+250,2);line(tx,ty+330,tx+360,ty+330,2);
+  text(tx+180,ty+40,'SAMPLE PROJECT',20,800);text(tx+180,ty+72,'Riverside Apartments',18,500);
+  text(tx+180,ty+125,'GENERAL ARRANGEMENT',18,800);text(tx+180,ty+155,'LEVEL '+level,20,800,'middle','#b8860b');
+  text(tx+20,ty+215,'Scale 1:100 @ A1',16,500,'start');text(tx+20,ty+295,'Dwg no. GA-'+level+'-001',16,500,'start');
+  text(tx+20,ty+375,'Rev C · DEMO ONLY',16,500,'start');text(tx+20,ty+420,'Not for construction',14,500,'start','#a00');
+  // north arrow
+  L.push(`<g transform="translate(2780 330)"><circle r="70" fill="none" stroke="#333" stroke-width="3"/><path d="M0 -60 L22 30 L0 12 L-22 30 Z" fill="#222"/><text y="-78" text-anchor="middle" font-family="Arial" font-weight="800" font-size="28">N</text></g>`);
+  return {svg:`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${L.join('')}</svg>`,W,H};
+}
+async function svgToPng(svg,W,H){
+  const img=await loadEl('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg));
+  const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(img,0,0);
+  return c.toDataURL('image/png');
+}
+
+async function seed(){
+  const T=(name,color,types)=>({id:uid(),name,color,types});
+  const trades=[
+    T('Painter & Decorator','#e11d48',['Paint peeling / flaking','Missed areas / patchy finish','Paint on fixtures or glass','Cracks not filled before painting','Runs or drips']),
+    T('Bricklayer','#b45309',['Damaged / chipped brick','Mortar joints incomplete','Mortar staining on face','Cavity tray / weep vents missing','Brickwork out of plumb']),
+    T('Dryliner / Plasterer','#7c3aed',['Board damaged','Poor joint finish','Screw pops','Uneven / wavy surface','Missing corner bead']),
+    T('Fire Stopping','#dc2626',['Penetration not sealed','Incorrect product used','Missing ID label','Gap around fire damper','Batt damaged / incomplete']),
+    T('Joiner','#0d9488',['Door not closing / latching','Frame damaged','Missing ironmongery','Skirting gaps','Architrave not fixed']),
+    T('Electrician','#2563eb',['Missing faceplate','Socket / switch not level','Light fitting not working','Cable exposed'])];
+  const tid=n=>trades.find(t=>t.name.startsWith(n)).id;
+  const C=(company,tradeIds,phone,email,people)=>({id:uid(),company,tradeIds,phone,email,people:people.map(([name,role,ph])=>({id:uid(),name,role,phone:ph||''}))});
+  const contractors=[
+    C('Brightwall Decorators Ltd',[tid('Painter')],'0161 555 0101','snags@brightwall.example',[['Dave Collins','Site supervisor','07700 900101'],['Sam Reid','Painter']]),
+    C('Northside Brickwork Ltd',[tid('Brick')],'0161 555 0102','office@northside.example',[['Mark Hughes','Contracts manager','07700 900202'],['Lee Grant','Gang leader']]),
+    C('Apex Drylining',[tid('Dry')],'0161 555 0103','info@apexdry.example',[['Priya Shah','Project manager','07700 900303']]),
+    C('PML Fire Protection',[tid('Fire'),tid('Joiner')],'','',[['Austin Leivers','Director'],['Paul','Installer']]),
+    C('Volt Electrical Services',[tid('Elec')],'0161 555 0105','',[['Chris Doyle','Foreman']])];
+  const dw=[];
+  for(const lv of ['00','01']){
+    const g=makeGA(lv);const k=await putImg(await svgToPng(g.svg,g.W,g.H));
+    dw.push({id:uid(),name:'GA Plan Level '+lv,level:'Level '+lv,img:k,w:g.W,h:g.H});
+  }
+  const cid=n=>contractors.find(c=>c.company.startsWith(n));
+  const mk=(no,d,x,y,t,type,c,pi,status,prio,loc,desc,due)=>({id:uid(),no,drawingId:dw[d].id,x,y,tradeId:tid(t),type,contractorId:cid(c).id,person:cid(c).people[pi]?.id||'',status,priority:prio,location:loc,desc,due,created:today(),photos:[]});
+  const snags=[
+    mk(1,0,.23,.41,'Painter','Paint peeling / flaking','Bright',0,'open','High','APT 00.01 – Living','Paint flaking off the wall beside the window reveal, approx 400mm patch.','2026-10-05'),
+    mk(2,0,.47,.30,'Painter','Paint on fixtures or glass','Bright',1,'progress','Low','APT 00.03 – Bedroom','Paint splashes on window glass and handle.','2026-10-08'),
+    mk(3,0,.62,.73,'Brick','Mortar staining on face','North',0,'open','Medium','External – gridline F/5','Mortar smears on facing brick below window.','2026-10-10'),
+    mk(4,0,.08,.46,'Fire','Penetration not sealed','PML',1,'ready','High','Stair 01 – riser','2 no. service penetrations through riser wall not fire stopped.','2026-10-02'),
+    mk(5,1,.36,.68,'Dry','Screw pops','Apex',0,'open','Medium','APT 01.07 – Bedroom','Screw pops visible across ceiling, approx 6 no.','2026-10-12'),
+    mk(6,1,.71,.33,'Painter','Missed areas / patchy finish','Bright',0,'open','Medium','APT 01.05 – Bedroom','Patchy finish behind door, needs a further coat.','2026-10-09'),
+    mk(7,1,.52,.47,'Joiner','Door not closing / latching','PML',0,'closed','Medium','Corridor – flat entrance door 01.03','Door not latching, closer adjusted.','2026-09-30'),
+    mk(8,1,.83,.72,'Elec','Missing faceplate','Volt',0,'open','Low','APT 01.10 – Living','Double socket faceplate missing next to TV point.','2026-10-15')];
+  return{v:1,trades,contractors,jobs:[{id:uid(),name:'Riverside Apartments – Block A',ref:'PML-SN-001',address:'Unit 4 Riverside Way, Manchester M1 0AA',client:'Sample Build Ltd',created:today(),drawings:dw,snags,nextNo:9}],
+    last:{}};
+}
+
+/* ───────────── router ───────────── */
+let cleanup=null;
+function setCrumbs(parts){$('#crumbs').innerHTML=parts.map(([t,h])=>h?`<a href="${h}">${esc(t)}</a>`:esc(t)).join(' <span style="opacity:.5">/</span> ');}
+async function route(){
+  if(cleanup){cleanup();cleanup=null;}
+  document.body.classList.remove('viewer-mode','show-report');
+  const p=location.hash.replace(/^#\/?/,'').split('/').filter(Boolean);
+  const app=$('#app');app.innerHTML='';
+  if(p[0]==='library')return viewLibrary(p[1]||'trades');
+  if(p[0]==='job'&&job(p[1])){
+    if(p[2]==='drawing')return viewDrawing(p[1],p[3],p[4]);
+    return viewJob(p[1],p[2]||'drawings');
+  }
+  viewJobs();
+}
+window.addEventListener('hashchange',route);
+
+/* ───────────── jobs list ───────────── */
+function countBy(snags){const o={open:0,progress:0,ready:0,closed:0};snags.forEach(s=>o[s.status]++);return o;}
+function viewJobs(){
+  setCrumbs([['Jobs']]);
+  const app=$('#app');
+  app.innerHTML=`<div class="main">
+    <div class="demo-note">🧪 <span><b>Demo version</b> — everything saves on this device only. A sample job, contractors and snag library are pre-loaded so you can try it.</span><span class="spacer"></span><button class="btn btn-o btn-sm" id="reset">Reset demo data</button></div>
+    <div class="page-head"><div><h1>Jobs</h1><p class="muted">Pick a job, or create a new one and upload its GA drawings.</p></div><span class="spacer"></span><button class="btn btn-y" id="newJob">＋ New job</button></div>
+    <div class="grid" id="jobs"></div></div>`;
+  const g=$('#jobs');
+  if(!S.jobs.length)g.innerHTML=`<div class="empty card" style="grid-column:1/-1"><b>No jobs yet</b>Create your first job to get started.</div>`;
+  S.jobs.forEach(j=>{
+    const c=countBy(j.snags);
+    const d=document.createElement('div');d.className='card job-card';
+    d.innerHTML=`<div class="ref">${esc(j.ref||'—')}</div><h3>${esc(j.name)}</h3><div class="addr">${esc(j.address||'')}</div>
+      <div class="stats"><span class="chip">📐 ${j.drawings.length} drawing${j.drawings.length==1?'':'s'}</span>
+      ${STATUSES.map(s=>`<span class="chip"><span class="dot" style="background:${s.c}"></span>${c[s.k]} ${s.label.toLowerCase()}</span>`).join('')}</div>`;
+    d.onclick=()=>location.hash=`#/job/${j.id}`;
+    g.append(d);
+  });
+  $('#newJob').onclick=()=>editJob();
+  $('#reset').onclick=async()=>{if(await confirmBox('Reset demo','This wipes everything on this device and reloads the sample job.','Reset')){await DB.clear();location.hash='#/';location.reload();}};
+}
+async function editJob(j){
+  const v=await modal(j?'Edit job':'New job',`
+    <div class="f"><label>Job name *</label><input name="name" value="${esc(j?.name)}" placeholder="e.g. Riverside Apartments – Block A"></div>
+    <div class="f2"><div class="f"><label>Job ref</label><input name="ref" value="${esc(j?.ref)}" placeholder="PML-SN-002"></div>
+    <div class="f"><label>Client / main contractor</label><input name="client" value="${esc(j?.client)}"></div></div>
+    <div class="f"><label>Site address</label><input name="address" value="${esc(j?.address)}"></div>`,{ok:j?'Save':'Create job'});
+  if(!v||!v.name.trim())return;
+  if(j){Object.assign(j,v);save();route();return;}
+  const nj={id:uid(),...v,created:today(),drawings:[],snags:[],nextNo:1};
+  S.jobs.unshift(nj);save();location.hash=`#/job/${nj.id}`;
+}
+
+/* ───────────── job page ───────────── */
+function viewJob(id,tab){
+  const j=job(id),c=countBy(j.snags);
+  setCrumbs([['Jobs','#/'],[j.name]]);
+  $('#app').innerHTML=`<div class="main">
+    <div class="hero"><div><div class="ref">${esc(j.ref||'')}</div><h1>${esc(j.name)}</h1><div class="addr">${esc([j.address,j.client].filter(Boolean).join(' · '))}</div></div>
+      <div class="kpis"><div class="kpi"><b>${c.open+c.progress}</b><span>Open</span></div><div class="kpi"><b>${c.ready}</b><span>To inspect</span></div><div class="kpi"><b>${c.closed}</b><span>Closed</span></div></div>
+      <div class="row"><button class="btn btn-ghost btn-sm" id="editJob">Edit job</button><button class="btn btn-ghost btn-sm" id="delJob">Delete</button></div></div>
+    <nav class="tabs">${[['drawings','📐 Drawings'],['snags','📍 Snag list'],['reports','📄 Reports']].map(([k,t])=>`<a class="tab ${k===tab?'on':''}" href="#/job/${id}/${k}">${t}</a>`).join('')}</nav>
+    <div id="tabBody"></div></div>`;
+  $('#editJob').onclick=()=>editJob(j);
+  $('#delJob').onclick=async()=>{if(await confirmBox('Delete job',`Delete <b>${esc(j.name)}</b> with all its drawings and snags? This can't be undone.`)){S.jobs=S.jobs.filter(x=>x!==j);save();location.hash='#/';}};
+  ({drawings:tabDrawings,snags:tabSnags,reports:tabReports}[tab]||tabDrawings)(j);
+}
+
+async function tabDrawings(j){
+  const b=$('#tabBody');
+  b.innerHTML=`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Upload GA drawings as an image (JPG/PNG) or PDF. Each PDF page becomes its own drawing.</p><span class="spacer"></span><button class="btn btn-y" id="up">⬆ Upload drawing</button></div><div class="grid" id="dg"></div>`;
+  $('#up').onclick=()=>uploadDrawing(j);
+  const g=$('#dg');
+  if(!j.drawings.length){g.innerHTML=`<div class="empty card" style="grid-column:1/-1"><b>No drawings yet</b>Upload a GA plan to start dropping snag pins on it.</div>`;return;}
+  for(const d of j.drawings){
+    const n=j.snags.filter(s=>s.drawingId===d.id),open=n.filter(s=>s.status!=='closed').length;
+    const el=document.createElement('div');el.className='card dwg-card';
+    el.innerHTML=`<div class="thumb"><span class="lvl">${esc(d.level||'—')}</span></div><div class="body"><b>${esc(d.name)}</b><span class="chip">${open} open / ${n.length}</span>
+      <button class="x" title="Edit" data-e>✎</button><button class="x" title="Delete" data-d>✕</button></div>`;
+    el.onclick=e=>{if(e.target.closest('[data-e],[data-d]'))return;location.hash=`#/job/${j.id}/drawing/${d.id}`;};
+    el.querySelector('[data-e]').onclick=async()=>{const v=await drawingForm(d.name,d.level);if(v){d.name=v.name||d.name;d.level=v.level;save();route();}};
+    el.querySelector('[data-d]').onclick=async()=>{if(await confirmBox('Delete drawing',`Delete <b>${esc(d.name)}</b> and its ${n.length} snag${n.length==1?'':'s'}?`)){j.drawings=j.drawings.filter(x=>x!==d);j.snags=j.snags.filter(s=>s.drawingId!==d.id);DB.del('img:'+d.img);save();route();}};
+    g.append(el);
+    getImg(d.img).then(u=>{if(u)el.querySelector('.thumb').style.backgroundImage=`url("${u}")`;});
+  }
+}
+const drawingForm=(name='',level='')=>modal('Drawing details',`
+  <div class="f"><label>Drawing name</label><input name="name" value="${esc(name)}" placeholder="e.g. GA Plan Level 02"></div>
+  <div class="f"><label>Floor / level</label><input name="level" value="${esc(level)}" placeholder="e.g. Level 02, Ground floor, Roof"></div>`);
+
+async function loadPdfJs(){
+  if(window.pdfjsLib)return window.pdfjsLib;
+  await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=rej;document.head.append(s);});
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return pdfjsLib;
+}
+async function uploadDrawing(j){
+  const [f]=await pickFiles('image/*,application/pdf');if(!f)return;
+  const base=f.name.replace(/\.[^.]+$/,'');
+  const v=await drawingForm(base,'');if(!v)return;
+  toast('Processing drawing…');
+  try{
+    const pages=[];
+    if(f.type==='application/pdf'||/\.pdf$/i.test(f.name)){
+      const lib=await loadPdfJs();
+      const pdf=await lib.getDocument({data:await f.arrayBuffer()}).promise;
+      for(let i=1;i<=pdf.numPages;i++){
+        const pg=await pdf.getPage(i),vp0=pg.getViewport({scale:1});
+        const sc=Math.min(4000/Math.max(vp0.width,vp0.height),6),vp=pg.getViewport({scale:sc});
+        const c=document.createElement('canvas');c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+        const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+        await pg.render({canvasContext:x,viewport:vp}).promise;
+        pages.push({url:c.toDataURL('image/jpeg',.85),w:c.width,h:c.height});
+      }
+    }else{
+      const url=await downscale(f,5000,.88);const im=await loadEl(url);
+      pages.push({url,w:im.naturalWidth,h:im.naturalHeight});
+    }
+    for(const [i,p] of pages.entries()){
+      j.drawings.push({id:uid(),name:(v.name||base)+(pages.length>1?` – p${i+1}`:''),level:v.level,img:await putImg(p.url),w:p.w,h:p.h});
+    }
+    save();route();toast(pages.length>1?`${pages.length} drawings added`:'Drawing added');
+  }catch(e){console.error(e);toast('Could not read that file');}
+}
+
+/* ───────────── snag list ───────────── */
+const F={contractor:'',status:'',trade:'',q:''};
+function tabSnags(j){
+  const b=$('#tabBody');
+  b.innerHTML=`<div class="filters">
+    <select id="fc"><option value="">All contractors</option>${S.contractors.map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('')}</select>
+    <select id="ft"><option value="">All trades</option>${S.trades.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
+    <select id="fs"><option value="">All statuses</option><option value="notclosed">Not closed</option>${STATUSES.map(s=>`<option value="${s.k}">${s.label}</option>`).join('')}</select>
+    <input id="fq" placeholder="Search…" style="flex:1;min-width:140px"></div>
+    <div class="card tbl-wrap"><table class="tbl"><thead><tr><th>No.</th><th>Snag</th><th>Contractor</th><th>Level / location</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead><tbody id="sb"></tbody></table></div>`;
+  const draw=()=>{
+    const dmap=Object.fromEntries(j.drawings.map(d=>[d.id,d]));
+    const q=F.q.toLowerCase();
+    const list=j.snags.filter(s=>(!F.contractor||s.contractorId===F.contractor)&&(!F.trade||s.tradeId===F.trade)&&
+      (!F.status||(F.status==='notclosed'?s.status!=='closed':s.status===F.status))&&
+      (!q||[s.type,s.desc,s.location,snagNo(s.no)].join(' ').toLowerCase().includes(q))).sort((a,b)=>a.no-b.no);
+    $('#sb').innerHTML=list.length?list.map(s=>{const t=trade(s.tradeId),d=dmap[s.drawingId];return`<tr class="click" data-id="${s.id}">
+      <td class="no">${snagNo(s.no)}</td><td><b>${esc(s.type||'—')}</b><div class="meta"><span style="color:${t?.color}">●</span> ${esc(t?.name||'')}</div></td>
+      <td>${esc(contractor(s.contractorId)?.company||'—')}</td><td>${esc(d?.level||'')}<div class="meta">${esc(s.location||'')}</div></td>
+      <td>${esc(s.priority)}</td><td>${fmtDate(s.due)}</td><td>${statusPill(s.status)}</td></tr>`;}).join(''):`<tr><td colspan="7" class="empty">No snags match.</td></tr>`;
+    document.querySelectorAll('#sb tr[data-id]').forEach(tr=>tr.onclick=()=>{const s=j.snags.find(x=>x.id===tr.dataset.id);location.hash=`#/job/${j.id}/drawing/${s.drawingId}/${s.id}`;});
+  };
+  [['#fc','contractor'],['#ft','trade'],['#fs','status'],['#fq','q']].forEach(([sel,k])=>{const el=$(sel);el.value=F[k];el.oninput=()=>{F[k]=el.value;draw();};});
+  draw();
+}
+
+/* ───────────── drawing viewer with pins ───────────── */
+function pinSVG(color){return`<svg viewBox="0 0 30 38"><path d="M15 37C15 37 2 22.5 2 14a13 13 0 0 1 26 0c0 8.5-13 23-13 23z" fill="${color}" stroke="#fff" stroke-width="2"/></svg>`;}
+async function viewDrawing(jobId,dwgId,snagId){
+  const j=job(jobId),d=j.drawings.find(x=>x.id===dwgId);
+  if(!d){location.hash=`#/job/${jobId}`;return;}
+  setCrumbs([['Jobs','#/'],[j.name,`#/job/${j.id}`],[d.name]]);
+  document.body.classList.add('viewer-mode');
+  document.documentElement.style.setProperty('--tb',document.querySelector('.topbar').offsetHeight+'px');
+  const app=$('#app');
+  app.innerHTML=`<div class="vwrap">
+    <div class="vbar">
+      <a class="btn btn-o btn-sm" href="#/job/${j.id}">← Back</a>
+      <select id="dsel">${j.drawings.map(x=>`<option value="${x.id}" ${x.id===d.id?'selected':''}>${esc(x.level?x.level+' – ':'')}${esc(x.name)}</option>`).join('')}</select>
+      <select id="vf"><option value="">All contractors</option>${S.contractors.map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('')}</select>
+      <span class="spacer"></span>
+      <button class="btn btn-y" id="addBtn">📍 <span class="lbl">Add snag</span></button>
+    </div>
+    <div class="vbody">
+      <div class="viewer" id="viewer"><img class="plan" id="plan" alt=""><div class="pins" id="pins"></div>
+      <div class="hint" id="hint">Tap the drawing to drop a pin</div>
+      <div class="zoom-ctl"><button class="icon-btn" id="zin">＋</button><button class="icon-btn" id="zout">−</button><button class="icon-btn" id="zfit" title="Fit" style="font-size:14px">⤢</button></div>
+      <div class="legend">${STATUSES.map(s=>`<span><span style="color:${s.c}">●</span> ${s.label}</span>`).join('')}</div></div>
+      <aside class="drawer" id="drawer" hidden></aside>
+    </div></div>`;
+  $('#dsel').onchange=e=>location.hash=`#/job/${j.id}/drawing/${e.target.value}`;
+  const vf=$('#vf');vf.value=F.contractor;vf.onchange=()=>{F.contractor=vf.value;renderPins();};
+
+  const viewer=$('#viewer'),img=$('#plan'),pinsEl=$('#pins');
+  img.src=await getImg(d.img);
+  await img.decode().catch(()=>{});
+  const W=img.naturalWidth||d.w,H=img.naturalHeight||d.h;
+  img.style.width=W+'px';img.style.height=H+'px';
+  let s=1,tx=0,ty=0,minS=.05,maxS=4,mode=null,sel=snagId||null;
+  const apply=()=>{img.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;positionPins();};
+  const fit=()=>{const r=viewer.getBoundingClientRect();s=Math.min(r.width/W,r.height/H)*.94;minS=s*.5;tx=(r.width-W*s)/2;ty=(r.height-H*s)/2;apply();};
+  const zoomAt=(f,cx,cy)=>{const ns=Math.max(minS,Math.min(maxS,s*f));tx=cx-(cx-tx)*(ns/s);ty=cy-(cy-ty)*(ns/s);s=ns;apply();};
+  const centre=()=>{const r=viewer.getBoundingClientRect();return[r.width/2,r.height/2];};
+  $('#zin').onclick=()=>zoomAt(1.4,...centre());
+  $('#zout').onclick=()=>zoomAt(1/1.4,...centre());
+  $('#zfit').onclick=fit;
+
+  function renderPins(){
+    pinsEl.innerHTML='';
+    j.snags.filter(x=>x.drawingId===d.id).sort((a,b)=>a.no-b.no).forEach(x=>{
+      const b=document.createElement('button');b.className='pin'+(x.id===sel?' sel':'')+(F.contractor&&x.contractorId!==F.contractor?' dim':'');
+      b.dataset.id=x.id;b.innerHTML=pinSVG(ST[x.status].c)+`<span>${x.no}</span>`;
+      b.title=`${snagNo(x.no)} ${x.type}`;
+      b.onclick=e=>{e.stopPropagation();select(x.id);};
+      pinsEl.append(b);
+    });
+    positionPins();
+  }
+  function positionPins(){
+    const by=Object.fromEntries(j.snags.map(x=>[x.id,x]));
+    pinsEl.querySelectorAll('.pin').forEach(p=>{const x=by[p.dataset.id];if(!x)return;p.style.left=(tx+x.x*W*s)+'px';p.style.top=(ty+x.y*H*s)+'px';});
+  }
+  function setMode(m){
+    mode=m;viewer.classList.toggle('adding',!!m);
+    $('#hint').classList.toggle('show',!!m);
+    $('#hint').textContent=m==='move'?'Tap the new position for this pin':'Tap the drawing to drop a pin';
+    $('#addBtn').classList.toggle('on',m==='add');
+  }
+  $('#addBtn').onclick=()=>setMode(mode==='add'?null:'add');
+  function select(id){sel=id;renderPins();openDrawer();history.replaceState(null,'',`#/job/${j.id}/drawing/${d.id}${id?'/'+id:''}`);}
+
+  function placeAt(px,py){
+    const x=(px-tx)/(W*s),y=(py-ty)/(H*s);
+    if(x<0||y<0||x>1||y>1){toast('Tap on the drawing itself');return;}
+    if(mode==='move'){const sn=j.snags.find(z=>z.id===sel);sn.x=x;sn.y=y;save();setMode(null);renderPins();toast('Pin moved');return;}
+    const L=S.last||{};
+    const sn={id:uid(),no:j.nextNo++,drawingId:d.id,x,y,tradeId:L.tradeId||S.trades[0]?.id||'',type:'',contractorId:L.contractorId||'',person:'',status:'open',priority:'Medium',location:'',desc:'',due:'',created:today(),photos:[]};
+    if(sn.contractorId&&!contractor(sn.contractorId)?.tradeIds.includes(sn.tradeId))sn.contractorId='';
+    j.snags.push(sn);save();setMode(null);select(sn.id);
+  }
+
+  // pointer handling: drag to pan, pinch/wheel to zoom, tap to place
+  const pts=new Map();let start=null,pinch=null;
+  viewer.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.pin,.zoom-ctl,.legend'))return;
+    viewer.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1)start={x:e.clientX,y:e.clientY,t:Date.now(),moved:false};
+    if(pts.size===2){const [a,b]=[...pts.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y)};start&&(start.moved=true);}
+  });
+  viewer.addEventListener('pointermove',e=>{
+    if(!pts.has(e.pointerId))return;
+    const prev=pts.get(e.pointerId),cur={x:e.clientX,y:e.clientY};pts.set(e.pointerId,cur);
+    const r=viewer.getBoundingClientRect();
+    if(pts.size===1){
+      if(start&&Math.hypot(cur.x-start.x,cur.y-start.y)>6)start.moved=true;
+      if(start?.moved){tx+=cur.x-prev.x;ty+=cur.y-prev.y;viewer.classList.add('dragging');apply();}
+    }else if(pts.size===2&&pinch){
+      const [a,b]=[...pts.values()],nd=Math.hypot(a.x-b.x,a.y-b.y);
+      zoomAt(nd/pinch.d,(a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top);pinch.d=nd;
+    }
+  });
+  const up=e=>{
+    if(!pts.has(e.pointerId))return;
+    pts.delete(e.pointerId);viewer.classList.remove('dragging');
+    if(pts.size<2)pinch=null;
+    if(pts.size===0&&start&&!start.moved&&Date.now()-start.t<600){
+      const r=viewer.getBoundingClientRect();
+      if(mode)placeAt(e.clientX-r.left,e.clientY-r.top);
+      else if(sel){sel=null;renderPins();closeDrawer();}
+    }
+    if(pts.size===0)start=null;
+  };
+  viewer.addEventListener('pointerup',up);viewer.addEventListener('pointercancel',up);
+  viewer.addEventListener('wheel',e=>{e.preventDefault();const r=viewer.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*.0015),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+  viewer.addEventListener('dblclick',e=>{if(mode)return;const r=viewer.getBoundingClientRect();zoomAt(2,e.clientX-r.left,e.clientY-r.top);});
+  const onResize=()=>positionPins();
+  window.addEventListener('resize',onResize);
+  const onKey=e=>{if(e.key==='Escape'){if(mode)setMode(null);else if(sel){sel=null;renderPins();closeDrawer();}}};
+  window.addEventListener('keydown',onKey);
+  cleanup=()=>{window.removeEventListener('resize',onResize);window.removeEventListener('keydown',onKey);};
+
+  /* drawer */
+  const drawer=$('#drawer');
+  function closeDrawer(){drawer.hidden=true;history.replaceState(null,'',`#/job/${j.id}/drawing/${d.id}`);requestAnimationFrame(positionPins);}
+  function openDrawer(){
+    const sn=j.snags.find(z=>z.id===sel);if(!sn){closeDrawer();return;}
+    const wasHidden=drawer.hidden;drawer.hidden=false;
+    const tr=trade(sn.tradeId);
+    const cons=S.contractors.filter(c=>!sn.tradeId||c.tradeIds.includes(sn.tradeId));
+    const others=S.contractors.filter(c=>!cons.includes(c));
+    const con=contractor(sn.contractorId);
+    const types=tr?.types||[];
+    drawer.innerHTML=`
+      <div class="dhead"><span class="no">${snagNo(sn.no)}</span>${statusPill(sn.status)}<span class="spacer"></span><button class="x" id="dclose" title="Close">✕</button></div>
+      <div class="dbody">
+        <div class="f"><label>Status</label><div class="seg" id="seg">${STATUSES.map(s=>`<button data-k="${s.k}" class="${s.k===sn.status?'on':''}" style="${s.k===sn.status?`background:${s.c}`:''}">${s.label}</button>`).join('')}</div></div>
+        <div class="f"><label>Trade</label><select id="i-trade"><option value="">— Choose trade —</option>${S.trades.map(t=>`<option value="${t.id}" ${t.id===sn.tradeId?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div>
+        <div class="f"><label>Snag / defect type</label><select id="i-type"><option value="">— Choose defect —</option>${types.map(t=>`<option ${t===sn.type?'selected':''}>${esc(t)}</option>`).join('')}${sn.type&&!types.includes(sn.type)?`<option selected>${esc(sn.type)}</option>`:''}<option value="__new">＋ Add a new defect type…</option></select></div>
+        <div class="f"><label>Contractor</label><select id="i-con"><option value="">— Choose contractor —</option>${cons.map(c=>`<option value="${c.id}" ${c.id===sn.contractorId?'selected':''}>${esc(c.company)}</option>`).join('')}${others.length?`<optgroup label="Other contractors">${others.map(c=>`<option value="${c.id}" ${c.id===sn.contractorId?'selected':''}>${esc(c.company)}</option>`).join('')}</optgroup>`:''}</select></div>
+        <div class="f"><label>Person responsible</label><select id="i-person"><option value="">— Choose person —</option>${(con?.people||[]).map(p=>`<option value="${p.id}" ${p.id===sn.person?'selected':''}>${esc(p.name)}${p.role?' – '+esc(p.role):''}</option>`).join('')}</select></div>
+        <div class="f2"><div class="f"><label>Priority</label><select id="i-prio">${PRIORITIES.map(p=>`<option ${p===sn.priority?'selected':''}>${p}</option>`).join('')}</select></div>
+          <div class="f"><label>Due date</label><input type="date" id="i-due" value="${esc(sn.due)}"></div></div>
+        <div class="f"><label>Floor / level</label><input value="${esc(d.level||'—')}" disabled style="background:#f6f4ef"></div>
+        <div class="f"><label>Location / room</label><input id="i-loc" value="${esc(sn.location)}" placeholder="e.g. APT 01.04 – Bathroom"></div>
+        <div class="f"><label>Description</label><textarea id="i-desc" placeholder="What's wrong and what needs doing">${esc(sn.desc)}</textarea></div>
+        <div class="f"><label>Photos</label><div class="photos" id="phs"></div></div>
+        <div class="meta">Raised ${fmtDate(sn.created)} · on ${esc(d.name)}</div>
+      </div>
+      <div class="dfoot"><button class="btn btn-o btn-sm" id="mv">✥ Move pin</button><span class="spacer"></span><button class="btn btn-danger btn-sm" id="del">Delete snag</button><button class="btn btn-dark btn-sm" id="done">Done</button></div>`;
+    const set=(k,v)=>{sn[k]=v;save();};
+    $('#dclose').onclick=$('#done').onclick=()=>{sel=null;renderPins();closeDrawer();};
+    drawer.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{set('status',b.dataset.k);renderPins();openDrawer();});
+    $('#i-trade').onchange=e=>{set('tradeId',e.target.value);set('type','');S.last.tradeId=e.target.value;const c=contractor(sn.contractorId);if(c&&!c.tradeIds.includes(sn.tradeId)){set('contractorId','');set('person','');}
+      const only=S.contractors.filter(c=>c.tradeIds.includes(sn.tradeId));if(!sn.contractorId&&only.length===1){set('contractorId',only[0].id);}openDrawer();};
+    $('#i-type').onchange=async e=>{
+      if(e.target.value==='__new'){
+        const v=await modal('New defect type',`<div class="f"><label>Defect name</label><input name="n" placeholder="e.g. Sealant missing around frame"></div><p class="meta">It's added to the ${esc(tr?.name||'selected')} list in your library, so you can pick it again next time.</p>`,{ok:'Add'});
+        if(v&&v.n.trim()){if(tr&&!tr.types.includes(v.n.trim()))tr.types.push(v.n.trim());set('type',v.n.trim());}
+        openDrawer();return;}
+      set('type',e.target.value);};
+    $('#i-con').onchange=e=>{set('contractorId',e.target.value);set('person','');S.last.contractorId=e.target.value;const c=contractor(e.target.value);if(c?.people.length===1)set('person',c.people[0].id);openDrawer();};
+    $('#i-person').onchange=e=>set('person',e.target.value);
+    $('#i-prio').onchange=e=>set('priority',e.target.value);
+    $('#i-due').onchange=e=>set('due',e.target.value);
+    $('#i-loc').oninput=e=>set('location',e.target.value);
+    $('#i-desc').oninput=e=>set('desc',e.target.value);
+    $('#mv').onclick=()=>{setMode('move');if(innerWidth<760)drawer.hidden=true;};
+    $('#del').onclick=async()=>{if(await confirmBox('Delete snag',`Delete ${snagNo(sn.no)}? This can't be undone.`)){j.snags=j.snags.filter(z=>z!==sn);sn.photos.forEach(k=>DB.del('img:'+k));save();sel=null;renderPins();closeDrawer();}};
+    const phs=$('#phs');
+    (async()=>{for(const k of sn.photos){const u=await getImg(k);const p=document.createElement('div');p.className='ph';p.style.backgroundImage=`url("${u}")`;p.innerHTML='<button title="Remove">×</button>';
+      p.onclick=e=>{if(e.target.tagName==='BUTTON'){sn.photos=sn.photos.filter(z=>z!==k);DB.del('img:'+k);save();openDrawer();}else lightbox(u);};phs.append(p);}
+      const a=document.createElement('div');a.className='ph-add';a.innerHTML='<b>＋</b>Photo';
+      a.onclick=async()=>{const fs=await pickFiles('image/*',true);for(const f of fs){sn.photos.push(await putImg(await downscale(f)));}save();openDrawer();};phs.append(a);})();
+    if(wasHidden)requestAnimationFrame(()=>{positionPins();ensureVisible(sn);});
+  }
+  function ensureVisible(sn){
+    const r=viewer.getBoundingClientRect(),px=tx+sn.x*W*s,py=ty+sn.y*H*s;
+    const bottomLimit=innerWidth<760?r.height*.28:r.height;
+    if(px<40||px>r.width-40||py<50||py>bottomLimit-10){tx+=r.width/2-px;ty+=(innerWidth<760?r.height*.18:r.height/2)-py;apply();}
+  }
+
+  fit();renderPins();
+  if(sel){const sn=j.snags.find(z=>z.id===sel);if(sn){zoomAt(2.2,...centre());openDrawer();ensureVisible(sn);}}
+}
+
+/* ───────────── reports ───────────── */
+const RF={contractor:'',status:'notclosed',photos:true,overview:true};
+function tabReports(j){
+  const b=$('#tabBody');
+  const counts=S.contractors.map(c=>{const l=j.snags.filter(s=>s.contractorId===c.id);return{c,all:l.length,open:l.filter(s=>s.status!=='closed').length};}).filter(x=>x.all);
+  b.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+    <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <h2>Generate a report</h2>
+      <div class="f"><label>Contractor</label><select id="rc"><option value="">All contractors (full job report)</option>${S.contractors.map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('')}</select></div>
+      <div class="f"><label>Which snags</label><select id="rs"><option value="notclosed">Outstanding (not closed)</option><option value="">All snags</option>${STATUSES.map(s=>`<option value="${s.k}">${s.label} only</option>`).join('')}</select></div>
+      <label class="row" style="font-size:13px"><input type="checkbox" id="ro"> Include drawing overview (every pin on each level)</label>
+      <label class="row" style="font-size:13px"><input type="checkbox" id="rp"> Include site photos</label>
+      <button class="btn btn-y" id="gen">📄 Generate report</button>
+    </div>
+    <div class="card" style="padding:16px"><h2 style="margin-bottom:10px">By contractor</h2>
+      ${counts.length?`<table class="tbl"><thead><tr><th>Contractor</th><th>Outstanding</th><th>Total</th><th></th></tr></thead><tbody>
+      ${counts.map(x=>`<tr><td><b>${esc(x.c.company)}</b></td><td>${x.open}</td><td>${x.all}</td><td><button class="btn btn-o btn-sm" data-c="${x.c.id}">Report</button></td></tr>`).join('')}</tbody></table>`:'<p class="muted">No snags yet.</p>'}
+    </div></div>`;
+  $('#rc').value=RF.contractor;$('#rs').value=RF.status;$('#ro').checked=RF.overview;$('#rp').checked=RF.photos;
+  const read=()=>{RF.contractor=$('#rc').value;RF.status=$('#rs').value;RF.overview=$('#ro').checked;RF.photos=$('#rp').checked;};
+  $('#gen').onclick=()=>{read();buildReport(j);};
+  b.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>{read();RF.contractor=x.dataset.c;buildReport(j);});
+}
+function drawPinOnCanvas(ctx,x,y,label,color,scale=1){
+  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+  ctx.beginPath();ctx.moveTo(0,0);ctx.bezierCurveTo(-4,-10,-13,-17,-13,-25);ctx.arc(0,-25,13,Math.PI,0);ctx.bezierCurveTo(13,-17,4,-10,0,0);
+  ctx.fillStyle=color;ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle='#fff';ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,0,-25);
+  ctx.restore();
+}
+async function snippet(d,sn){
+  const im=await loadEl(await getImg(d.img));
+  const W=im.naturalWidth,H=im.naturalHeight,cw=640,ch=440;
+  const sw=Math.min(W,Math.max(W*.22,700)),sh=sw*ch/cw;
+  let sx=sn.x*W-sw/2,sy=sn.y*H-sh/2;sx=Math.max(0,Math.min(W-sw,sx));sy=Math.max(0,Math.min(H-sh,sy));
+  const c=document.createElement('canvas');c.width=cw;c.height=ch;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,cw,ch);x.drawImage(im,sx,sy,sw,sh,0,0,cw,ch);
+  const px=(sn.x*W-sx)*cw/sw,py=(sn.y*H-sy)*ch/sh;
+  x.beginPath();x.arc(px,py,46,0,Math.PI*2);x.strokeStyle='rgba(252,191,42,.95)';x.lineWidth=7;x.stroke();
+  drawPinOnCanvas(x,px,py,String(sn.no),ST[sn.status].c,2.3);
+  return c.toDataURL('image/jpeg',.85);
+}
+async function overview(d,list){
+  const im=await loadEl(await getImg(d.img));
+  const cw=1400,sc=cw/im.naturalWidth,ch=Math.round(im.naturalHeight*sc);
+  const c=document.createElement('canvas');c.width=cw;c.height=ch;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,cw,ch);x.drawImage(im,0,0,cw,ch);
+  list.forEach(sn=>drawPinOnCanvas(x,sn.x*cw,sn.y*ch,String(sn.no),ST[sn.status].c,1.1));
+  return c.toDataURL('image/jpeg',.85);
+}
+async function buildReport(j){
+  const con=contractor(RF.contractor);
+  const list=j.snags.filter(s=>(!con||s.contractorId===con.id)&&(!RF.status||(RF.status==='notclosed'?s.status!=='closed':s.status===RF.status))).sort((a,b)=>a.no-b.no);
+  if(!list.length){toast('No snags match those options');return;}
+  toast('Building report…');
+  const dmap=Object.fromEntries(j.drawings.map(d=>[d.id,d]));
+  const c=countBy(list);
+  const who=p=>{const cc=contractor(p.contractorId);return cc?.people.find(x=>x.id===p.person)?.name||'—';};
+  let html=`<div class="rbar"><button class="btn btn-ghost btn-sm" id="rback">← Back</button><b style="font-family:var(--ffh)">Snagging report</b><span class="spacer"></span><button class="btn btn-y" id="rprint">🖨 Print / Save as PDF</button></div>
+  <div class="sheet">
+    <div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">Snagging Report</div><div class="s">${esc(con?con.company:'All contractors')}</div></div>
+      <div class="d">Report date<br><b>${fmtDate(today())}</b></div></div>
+    <div class="r-info">
+      <div><b>Job</b>${esc(j.name)}</div><div><b>Job ref</b>${esc(j.ref||'—')}</div>
+      <div><b>Site address</b>${esc(j.address||'—')}</div><div><b>Client / main contractor</b>${esc(j.client||'—')}</div>
+      <div><b>Contractor</b>${esc(con?.company||'All')}</div><div><b>Contact</b>${esc(con?[con.phone,con.email].filter(Boolean).join(' · ')||'—':'—')}</div>
+      <div><b>Snags included</b>${RF.status==='notclosed'?'Outstanding (not closed)':RF.status?ST[RF.status].label+' only':'All'}</div><div><b>Total in report</b>${list.length}</div>
+    </div>
+    <div class="r-sum">${STATUSES.map(s=>`<div style="border-top-color:${s.c}"><b>${c[s.k]}</b><span>${s.label}</span></div>`).join('')}</div>
+    <div class="r-h2">Snag summary</div>
+    <table class="r-tbl"><thead><tr><th>No.</th><th>Defect</th>${con?'':'<th>Contractor</th>'}<th>Level</th><th>Location</th><th>Responsible</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead><tbody>
+    ${list.map(s=>`<tr><td><b>${snagNo(s.no)}</b></td><td>${esc(s.type||'—')}</td>${con?'':`<td>${esc(contractor(s.contractorId)?.company||'—')}</td>`}<td>${esc(dmap[s.drawingId]?.level||'')}</td><td>${esc(s.location||'')}</td><td>${esc(who(s))}</td><td>${esc(s.priority)}</td><td>${fmtDate(s.due)}</td><td>${esc(ST[s.status].label)}</td></tr>`).join('')}
+    </tbody></table>`;
+  if(RF.overview){
+    html+=`<div class="r-h2" style="break-before:page">Drawing overview</div>`;
+    for(const d of j.drawings){const l=list.filter(s=>s.drawingId===d.id);if(!l.length)continue;
+      html+=`<div class="r-ov"><img src="${await overview(d,l)}"><div class="cap"><b>${esc(d.level||'')}</b> — ${esc(d.name)} · ${l.length} snag${l.length==1?'':'s'}: ${l.map(s=>snagNo(s.no)).join(', ')}</div></div>`;}
+  }
+  html+=`<div class="r-h2" style="break-before:page">Snag details</div>`;
+  for(const s of list){
+    const d=dmap[s.drawingId],t=trade(s.tradeId);
+    const photos=RF.photos?await Promise.all(s.photos.map(getImg)):[];
+    html+=`<div class="r-snag"><div class="sh"><span class="n">${snagNo(s.no)}</span><span class="ty">${esc(s.type||'—')}</span><span class="status" style="background:${ST[s.status].c}">${ST[s.status].label}</span></div>
+      <div class="sb"><img src="${await snippet(d,s)}" alt="Location on drawing">
+        <div class="kv"><b>Trade</b><span>${esc(t?.name||'—')}</span><b>Contractor</b><span>${esc(contractor(s.contractorId)?.company||'—')}</span>
+        <b>Responsible</b><span>${esc(who(s))}</span><b>Floor / level</b><span>${esc(d.level||'—')}</span><b>Drawing</b><span>${esc(d.name)}</span>
+        <b>Location</b><span>${esc(s.location||'—')}</span><b>Priority</b><span>${esc(s.priority)}</span><b>Raised / due</b><span>${fmtDate(s.created)} → ${fmtDate(s.due)}</span>
+        ${s.desc?`<div class="desc">${esc(s.desc)}</div>`:''}</div></div>
+      ${photos.length?`<div class="rp">${photos.filter(Boolean).map(u=>`<img src="${u}">`).join('')}</div>`:''}</div>`;
+  }
+  html+=`<div class="r-sign"><div>Contractor signature / date</div><div>Inspected by (PML) / date</div></div>
+    <div class="r-foot"><span>PML Fire Protection · Building Confidence.</span><span>${esc(j.ref||'')} · generated ${new Date().toLocaleString('en-GB')}</span></div></div>`;
+  const r=$('#report');r.innerHTML=html;
+  document.body.classList.add('show-report');window.scrollTo(0,0);
+  $('#rback').onclick=()=>{document.body.classList.remove('show-report');r.innerHTML='';};
+  $('#rprint').onclick=()=>window.print();
+}
+
+/* ───────────── library: trades, defect types, contractors ───────────── */
+function viewLibrary(tab){
+  setCrumbs([['Jobs','#/'],['Contractors & snag library']]);
+  $('#app').innerHTML=`<div class="main">
+    <div class="page-head"><div><h1>Contractors &amp; snag library</h1><p class="muted">Your own lists. Changes apply to every job and save automatically.</p></div></div>
+    <nav class="tabs"><a class="tab ${tab==='trades'?'on':''}" href="#/library/trades">🔧 Trades &amp; defect types</a><a class="tab ${tab==='contractors'?'on':''}" href="#/library/contractors">🏢 Contractors &amp; people</a></nav>
+    <div id="lib"></div></div>`;
+  (tab==='contractors'?libContractors:libTrades)();
+}
+function libTrades(){
+  const L=$('#lib');
+  L.innerHTML=`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Each trade has its own list of defects. These are the options you pick from when you drop a pin.</p><span class="spacer"></span><button class="btn btn-y" id="addT">＋ Add trade</button></div><div class="lib-grid" id="tg"></div>`;
+  $('#addT').onclick=()=>{S.trades.push({id:uid(),name:'New trade',color:'#64748b',types:[]});save();libTrades();};
+  const g=$('#tg');
+  S.trades.forEach(t=>{
+    const used=S.jobs.some(j=>j.snags.some(s=>s.tradeId===t.id));
+    const c=document.createElement('div');c.className='card lib-card';
+    c.innerHTML=`<div class="hd"><input type="color" class="swatch" value="${t.color}" title="Colour"><input value="${esc(t.name)}" data-n><button class="x" data-d title="Delete trade">✕</button></div>
+      <div class="f"><label>Defect types (${t.types.length})</label></div><div class="types"></div>
+      <button class="btn btn-o btn-sm" data-a style="margin-top:8px;align-self:flex-start">＋ Add defect type</button>`;
+    c.querySelector('.swatch').oninput=e=>{t.color=e.target.value;save();};
+    c.querySelector('[data-n]').oninput=e=>{t.name=e.target.value;save();};
+    c.querySelector('[data-d]').onclick=async()=>{if(await confirmBox('Delete trade',`Delete <b>${esc(t.name)}</b> and its defect list?${used?' Existing snags keep their text but lose the trade link.':''}`)){S.trades=S.trades.filter(x=>x!==t);S.contractors.forEach(k=>k.tradeIds=k.tradeIds.filter(i=>i!==t.id));save();libTrades();}};
+    const types=c.querySelector('.types');
+    const drawTypes=()=>{types.innerHTML='';t.types.forEach((ty,i)=>{const r=document.createElement('div');r.className='type-row';r.innerHTML=`<input value="${esc(ty)}"><button class="x" title="Remove">✕</button>`;
+      r.querySelector('input').oninput=e=>{t.types[i]=e.target.value;save();};
+      r.querySelector('button').onclick=()=>{t.types.splice(i,1);save();drawTypes();c.querySelector('.f label').textContent=`Defect types (${t.types.length})`;};types.append(r);});};
+    drawTypes();
+    c.querySelector('[data-a]').onclick=()=>{t.types.push('');save();drawTypes();types.lastElementChild.querySelector('input').focus();c.querySelector('.f label').textContent=`Defect types (${t.types.length})`;};
+    g.append(c);
+  });
+}
+function libContractors(){
+  const L=$('#lib');
+  L.innerHTML=`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Add each company, tick the trades they cover, and list the people responsible.</p><span class="spacer"></span><button class="btn btn-y" id="addC">＋ Add contractor</button></div><div class="lib-grid" id="cg"></div>`;
+  $('#addC').onclick=()=>{S.contractors.unshift({id:uid(),company:'New contractor',tradeIds:[],phone:'',email:'',people:[]});save();libContractors();$('#cg input[data-n]').select();};
+  const g=$('#cg');
+  S.contractors.forEach(k=>{
+    const c=document.createElement('div');c.className='card lib-card';
+    c.innerHTML=`<div class="hd"><span style="font-size:20px">🏢</span><input value="${esc(k.company)}" data-n><button class="x" data-d title="Delete contractor">✕</button></div>
+      <div class="f" style="margin-bottom:10px"><label>Trades</label><div class="tradechecks">${S.trades.map(t=>`<label class="${k.tradeIds.includes(t.id)?'on':''}"><input type="checkbox" value="${t.id}" ${k.tradeIds.includes(t.id)?'checked':''}><span style="color:${t.color}">●</span>${esc(t.name)}</label>`).join('')}</div></div>
+      <div class="f2" style="margin-bottom:10px"><div class="f"><label>Phone</label><input data-k="phone" value="${esc(k.phone)}"></div><div class="f"><label>Email</label><input data-k="email" value="${esc(k.email)}"></div></div>
+      <div class="f"><label>People responsible</label></div><div class="types people"></div>
+      <button class="btn btn-o btn-sm" data-a style="margin-top:8px">＋ Add person</button>`;
+    c.querySelector('[data-n]').oninput=e=>{k.company=e.target.value;save();};
+    c.querySelectorAll('[data-k]').forEach(i=>i.oninput=()=>{k[i.dataset.k]=i.value;save();});
+    c.querySelectorAll('.tradechecks input').forEach(i=>i.onchange=()=>{k.tradeIds=i.checked?[...k.tradeIds,i.value]:k.tradeIds.filter(x=>x!==i.value);i.parentElement.classList.toggle('on',i.checked);save();});
+    c.querySelector('[data-d]').onclick=async()=>{if(await confirmBox('Delete contractor',`Delete <b>${esc(k.company)}</b>? Snags assigned to them become unassigned.`)){S.contractors=S.contractors.filter(x=>x!==k);S.jobs.forEach(j=>j.snags.forEach(s=>{if(s.contractorId===k.id){s.contractorId='';s.person='';}}));save();libContractors();}};
+    const ppl=c.querySelector('.people');
+    const drawP=()=>{ppl.innerHTML='';k.people.forEach(p=>{const r=document.createElement('div');r.className='type-row';
+      r.innerHTML=`<input data-f="name" placeholder="Name" value="${esc(p.name)}"><input data-f="role" placeholder="Role" value="${esc(p.role)}"><input data-f="phone" placeholder="Mobile" value="${esc(p.phone)}"><button class="x" title="Remove">✕</button>`;
+      r.querySelectorAll('input').forEach(i=>i.oninput=()=>{p[i.dataset.f]=i.value;save();});
+      r.querySelector('button').onclick=()=>{k.people=k.people.filter(x=>x!==p);save();drawP();};ppl.append(r);});};
+    drawP();
+    c.querySelector('[data-a]').onclick=()=>{k.people.push({id:uid(),name:'',role:'',phone:''});save();drawP();ppl.lastElementChild.querySelector('input').focus();};
+    g.append(c);
+  });
+}
+
+/* ───────────── start ───────────── */
+(async()=>{
+  $('#app').innerHTML='<div class="empty">Loading…</div>';
+  S=await DB.get('state');
+  if(!S){$('#app').innerHTML='<div class="empty">Setting up the demo job…</div>';S=await seed();await DB.set('state',S);}
+  S.last=S.last||{};
+  route();
+})();
+</script>
+</body>
+</html>
