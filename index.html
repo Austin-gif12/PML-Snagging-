@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PML Snagging">
 <meta name="theme-color" content="#0E0602">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="assets/icon-180.png">
 <link rel="icon" href="assets/icon-180.png">
 <title>PML Snagging</title>
@@ -142,6 +143,10 @@ body.viewer-mode{overflow:hidden}
 .ph-add{width:78px;height:78px;border-radius:10px;border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;gap:2px}
 .ph-add b{font-size:22px;line-height:1}
 .meta{font-size:11.5px;color:var(--muted)}
+.copied{display:flex;align-items:center;gap:8px;background:var(--yellow-soft);border:1px solid #f5dc97;border-radius:10px;padding:8px 10px;font-size:12.5px}
+.copied .btn{margin-left:auto}
+.net{font:700 11px var(--ffh);padding:4px 9px;border-radius:99px;background:#7c2d12;color:#fff;display:none}
+body.offline .net{display:inline-block}
 
 /* snag list */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -252,6 +257,7 @@ body.show-report #report{display:block}
   <a class="brand" href="#/"><img src="assets/logo-light.png" alt="PML"><span class="brand-sub">Snagging</span></a>
   <div class="crumbs" id="crumbs"></div>
   <div class="top-actions">
+    <span class="net" title="No signal: everything still saves on this device">● Offline</span>
     <a class="btn btn-ghost btn-sm" href="#/library">⚙<span class="lbl-m"> Contractors &amp; snag library</span></a>
   </div>
 </header>
@@ -597,6 +603,7 @@ async function viewDrawing(jobId,dwgId,snagId){
       <select id="dsel">${j.drawings.map(x=>`<option value="${x.id}" ${x.id===d.id?'selected':''}>${esc(x.level?x.level+' – ':'')}${esc(x.name)}</option>`).join('')}</select>
       <select id="vf"><option value="">All contractors</option>${S.contractors.map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('')}</select>
       <span class="spacer"></span>
+      <button class="btn btn-o btn-sm" id="memBtn" title="New snags copy the trade, defect, contractor, person, priority, due date and description from the last snag you worked on">↻ <span class="lbl">Remember last snag</span> <b id="memState"></b></button>
       <button class="btn btn-y" id="addBtn">📍 <span class="lbl">Add snag</span></button>
     </div>
     <div class="vbody">
@@ -614,7 +621,7 @@ async function viewDrawing(jobId,dwgId,snagId){
   await img.decode().catch(()=>{});
   const W=img.naturalWidth||d.w,H=img.naturalHeight||d.h;
   img.style.width=W+'px';img.style.height=H+'px';
-  let s=1,tx=0,ty=0,minS=.05,maxS=4,mode=null,sel=snagId||null;
+  let s=1,tx=0,ty=0,minS=.05,maxS=4,mode=null,sel=snagId||null,template=null,copiedFrom=null;
   const apply=()=>{img.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;positionPins();};
   const fit=()=>{const r=viewer.getBoundingClientRect();s=Math.min(r.width/W,r.height/H)*.94;minS=s*.5;tx=(r.width-W*s)/2;ty=(r.height-H*s)/2;apply();};
   const zoomAt=(f,cx,cy)=>{const ns=Math.max(minS,Math.min(maxS,s*f));tx=cx-(cx-tx)*(ns/s);ty=cy-(cy-ty)*(ns/s);s=ns;apply();};
@@ -644,16 +651,25 @@ async function viewDrawing(jobId,dwgId,snagId){
     $('#hint').textContent=m==='move'?'Tap the new position for this pin':'Tap the drawing to drop a pin';
     $('#addBtn').classList.toggle('on',m==='add');
   }
-  $('#addBtn').onclick=()=>setMode(mode==='add'?null:'add');
+  $('#addBtn').onclick=()=>{template=null;setMode(mode==='add'?null:'add');};
+  const drawMem=()=>{const on=S.prefill!==false;$('#memBtn').classList.toggle('on',on);$('#memState').textContent=on?'ON':'OFF';};
+  $('#memBtn').onclick=()=>{S.prefill=S.prefill===false;save();drawMem();toast(S.prefill?'New snags will copy your last snag':'New snags start blank');};
+  drawMem();
   function select(id){sel=id;renderPins();openDrawer();history.replaceState(null,'',`#/job/${j.id}/drawing/${d.id}${id?'/'+id:''}`);}
 
   function placeAt(px,py){
     const x=(px-tx)/(W*s),y=(py-ty)/(H*s);
     if(x<0||y<0||x>1||y>1){toast('Tap on the drawing itself');return;}
     if(mode==='move'){const sn=j.snags.find(z=>z.id===sel);sn.x=x;sn.y=y;save();setMode(null);renderPins();toast('Pin moved');return;}
-    const L=S.last||{};
-    const sn={id:uid(),no:j.nextNo++,drawingId:d.id,x,y,tradeId:L.tradeId||S.trades[0]?.id||'',type:'',contractorId:L.contractorId||'',person:'',status:'open',priority:'Medium',location:'',desc:'',due:'',created:today(),photos:[]};
-    if(sn.contractorId&&!contractor(sn.contractorId)?.tradeIds.includes(sn.tradeId))sn.contractorId='';
+    // "memory": copy the last snag worked on (or the one "Same again" was pressed on)
+    const L=template||(S.prefill!==false?S.last:null)||{};
+    const sn={id:uid(),no:j.nextNo++,drawingId:d.id,x,y,tradeId:L.tradeId||S.trades[0]?.id||'',type:L.type||'',contractorId:L.contractorId||'',person:L.person||'',status:'open',priority:L.priority||'Medium',location:'',desc:L.desc||'',due:L.due||'',created:today(),photos:[]};
+    if(!trade(sn.tradeId)){sn.tradeId=S.trades[0]?.id||'';sn.type='';}
+    const c=contractor(sn.contractorId);
+    if(!c){sn.contractorId='';sn.person='';}
+    else if(!c.people.some(p=>p.id===sn.person))sn.person='';
+    copiedFrom=L.no&&(L.type||L.contractorId)?{id:sn.id,no:L.no}:null;
+    template=null;
     j.snags.push(sn);save();setMode(null);select(sn.id);
   }
 
@@ -712,6 +728,7 @@ async function viewDrawing(jobId,dwgId,snagId){
     drawer.innerHTML=`
       <div class="dhead"><span class="no">${snagNo(sn.no)}</span>${statusPill(sn.status)}<span class="spacer"></span><button class="x" id="dclose" title="Close">✕</button></div>
       <div class="dbody">
+        ${copiedFrom?.id===sn.id?`<div class="copied">↻ Filled in from <b>${snagNo(copiedFrom.no)}</b> — just change what's different.<button class="btn btn-o btn-sm" id="clearCopy">Clear</button></div>`:''}
         <div class="f"><label>Status</label><div class="seg" id="seg">${STATUSES.map(s=>`<button data-k="${s.k}" class="${s.k===sn.status?'on':''}" style="${s.k===sn.status?`background:${s.c}`:''}">${s.label}</button>`).join('')}</div></div>
         <div class="f"><label>Trade</label><select id="i-trade"><option value="">— Choose trade —</option>${S.trades.map(t=>`<option value="${t.id}" ${t.id===sn.tradeId?'selected':''}>${esc(t.name)}</option>`).join('')}</select></div>
         <div class="f"><label>Snag / defect type</label><select id="i-type"><option value="">— Choose defect —</option>${types.map(t=>`<option ${t===sn.type?'selected':''}>${esc(t)}</option>`).join('')}${sn.type&&!types.includes(sn.type)?`<option selected>${esc(sn.type)}</option>`:''}<option value="__new">＋ Add a new defect type…</option></select></div>
@@ -725,11 +742,15 @@ async function viewDrawing(jobId,dwgId,snagId){
         <div class="f"><label>Photos</label><div class="photos" id="phs"></div></div>
         <div class="meta">Raised ${fmtDate(sn.created)} · on ${esc(d.name)}</div>
       </div>
-      <div class="dfoot"><button class="btn btn-o btn-sm" id="mv">✥ Move pin</button><span class="spacer"></span><button class="btn btn-danger btn-sm" id="del">Delete snag</button><button class="btn btn-dark btn-sm" id="done">Done</button></div>`;
-    const set=(k,v)=>{sn[k]=v;save();};
+      <div class="dfoot"><button class="btn btn-o btn-sm" id="mv">✥ Move pin</button><button class="btn btn-y btn-sm" id="again" title="Drop another pin with the same details">＋ Same again</button><span class="spacer"></span><button class="btn btn-danger btn-sm" id="del">Delete</button><button class="btn btn-dark btn-sm" id="done">Done</button></div>`;
+    const MEM=['tradeId','type','contractorId','person','priority','due','desc'];
+    const remember=()=>{S.last={no:sn.no};MEM.forEach(k=>S.last[k]=sn[k]);};
+    const set=(k,v)=>{sn[k]=v;if(MEM.includes(k))remember();save();};
+    $('#clearCopy')&&($('#clearCopy').onclick=()=>{Object.assign(sn,{type:'',contractorId:'',person:'',priority:'Medium',due:'',desc:''});copiedFrom=null;save();openDrawer();});
+    $('#again').onclick=()=>{remember();template={...S.last};save();setMode('add');if(innerWidth<760)drawer.hidden=true;toast(`Tap the drawing — copies ${snagNo(sn.no)}`);};
     $('#dclose').onclick=$('#done').onclick=()=>{sel=null;renderPins();closeDrawer();};
     drawer.querySelectorAll('#seg button').forEach(b=>b.onclick=()=>{set('status',b.dataset.k);renderPins();openDrawer();});
-    $('#i-trade').onchange=e=>{set('tradeId',e.target.value);set('type','');S.last.tradeId=e.target.value;const c=contractor(sn.contractorId);if(c&&!c.tradeIds.includes(sn.tradeId)){set('contractorId','');set('person','');}
+    $('#i-trade').onchange=e=>{set('tradeId',e.target.value);set('type','');const c=contractor(sn.contractorId);if(c&&!c.tradeIds.includes(sn.tradeId)){set('contractorId','');set('person','');}
       const only=S.contractors.filter(c=>c.tradeIds.includes(sn.tradeId));if(!sn.contractorId&&only.length===1){set('contractorId',only[0].id);}openDrawer();};
     $('#i-type').onchange=async e=>{
       if(e.target.value==='__new'){
@@ -737,7 +758,7 @@ async function viewDrawing(jobId,dwgId,snagId){
         if(v&&v.n.trim()){if(tr&&!tr.types.includes(v.n.trim()))tr.types.push(v.n.trim());set('type',v.n.trim());}
         openDrawer();return;}
       set('type',e.target.value);};
-    $('#i-con').onchange=e=>{set('contractorId',e.target.value);set('person','');S.last.contractorId=e.target.value;const c=contractor(e.target.value);if(c?.people.length===1)set('person',c.people[0].id);openDrawer();};
+    $('#i-con').onchange=e=>{set('contractorId',e.target.value);set('person','');const c=contractor(e.target.value);if(c?.people.length===1)set('person',c.people[0].id);openDrawer();};
     $('#i-person').onchange=e=>set('person',e.target.value);
     $('#i-prio').onchange=e=>set('priority',e.target.value);
     $('#i-due').onchange=e=>set('due',e.target.value);
@@ -927,6 +948,14 @@ function libContractors(){
   S.last=S.last||{};
   route();
 })();
+
+/* ───────────── offline ───────────── */
+// Keep a copy of the app on the device (needs https, e.g. GitHub Pages, or localhost).
+if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(e=>console.warn('Offline cache not set up',e));
+// Ask the browser not to clear saved snags when the phone is low on space.
+navigator.storage?.persist?.().catch(()=>{});
+const netState=()=>document.body.classList.toggle('offline',!navigator.onLine);
+addEventListener('online',netState);addEventListener('offline',netState);netState();
 </script>
 </body>
 </html>
