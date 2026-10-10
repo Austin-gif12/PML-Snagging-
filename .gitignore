@@ -1,0 +1,8 @@
+# Secrets and one-off migration files: never commit these
+firebase-key.json
+*service-account*.json
+firebase-export.json
+.dev.vars
+# Build tools
+node_modules/
+.wrangler/

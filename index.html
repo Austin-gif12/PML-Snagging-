@@ -335,10 +335,12 @@ body.show-report #report{display:block}
 
 <script type="module">
 import {
-  auth, db, OWNER_EMAILS, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail,
-  sendEmailVerification, reloadUser, createAccount,
+  auth, db, OWNER_EMAILS, onAuthStateChanged, signOut, pendingWrites, sendInvite, importDocs, setSessionRefresher, setRefusedHandler,
   collection, doc, query, where, onSnapshot, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch
-} from './firebase-init.js';
+} from './data.js';
+import {
+  returningFromSignIn, startSignInRequested, workosSignIn, finishSignIn, workosSignOut, refreshSession
+} from './workos-auth.js';
 
 /* ═════════════ helpers ═════════════ */
 const $=s=>document.querySelector(s);
@@ -448,48 +450,36 @@ function authScreen(inner){
     <div class="auth-logo"><img src="assets/logo-dark-print.png" alt="PML"><span>Snagging</span></div>${inner}</div>
     <div class="auth-foot">PML Fire Protection · Building Confidence.</div></div></div>`;
 }
+// Signing in happens on the WorkOS AuthKit page (email + password, forgotten password, codes etc.).
 function showLogin(msg='',ok=false){
   authScreen(`<h1>Sign in</h1>
     ${msg?`<div class="auth-msg ${ok?'ok':''}">${esc(msg)}</div>`:''}
-    <div class="f"><label>Email</label><input id="lEmail" type="email" autocomplete="username" inputmode="email"></div>
-    <div class="f"><label>Password</label><input id="lPass" type="password" autocomplete="current-password"></div>
+    <p style="font-size:14px">Use the email address PML gave access to.</p>
     <button class="btn btn-y btn-block" id="lGo">Sign in</button>
-    <button class="linkbtn" id="lForgot">Forgotten your password?</button>`);
-  const go=async()=>{
-    const e=low($('#lEmail').value),p=$('#lPass').value;
-    if(!e||!p){showLogin('Enter your email and password.');return;}
-    $('#lGo').disabled=true;$('#lGo').textContent='Signing in…';
-    try{await signInWithEmailAndPassword(auth,e,p);}
-    catch(err){
-      const m={'auth/invalid-credential':'Wrong email or password.','auth/wrong-password':'Wrong email or password.','auth/user-not-found':'Wrong email or password.','auth/too-many-requests':'Too many attempts — wait a few minutes or reset your password.','auth/network-request-failed':'No signal. You need signal the first time you sign in on a device.'}[err.code]||('Sign-in failed: '+(err.code||err.message));
-      showLogin(m);$('#lEmail').value=e;
-    }
+    <button class="linkbtn" id="lNew">First time? Create your login</button>`);
+  const go=async signUp=>{
+    if(!navigator.onLine){showLogin('No signal. You need signal the first time you sign in on a device.');return;}
+    $('#lGo').disabled=true;$('#lGo').textContent='Opening sign-in…';
+    try{await workosSignIn({signUp});}
+    catch(err){showLogin('Could not open the sign-in page: '+(err.message||err));}
   };
-  $('#lGo').onclick=go;
-  $('#lPass').onkeydown=e=>{if(e.key==='Enter')go();};
-  $('#lForgot').onclick=async()=>{
-    const e=low($('#lEmail').value);
-    if(!e){showLogin('Type your email first, then tap "Forgotten your password?".');return;}
-    try{await sendPasswordResetEmail(auth,e);showLogin(`If ${e} has a login, a password reset email is on its way. Check junk mail too.`,true);}
-    catch(err){showLogin('Could not send the email: '+(err.code||err.message));}
-  };
-}
-function showVerify(user,msg=''){
-  authScreen(`<h1>Confirm your email</h1>
-    <p style="font-size:14px">Before you can see any jobs, confirm that <b>${esc(user.email)}</b> is yours. We'll email you a link.</p>
-    ${msg?`<div class="auth-msg ok">${esc(msg)}</div>`:''}
-    <button class="btn btn-y btn-block" id="vSend">Send confirmation email</button>
-    <button class="btn btn-o btn-block" id="vDone">I've clicked the link — continue</button>
-    <button class="linkbtn" id="vOut">Sign out</button>`);
-  $('#vSend').onclick=async()=>{try{await sendEmailVerification(user);showVerify(user,'Sent. Open the email, tap the link, then come back and tap Continue.');}catch(e){showVerify(user,'Could not send: '+(e.code||e.message));}};
-  $('#vDone').onclick=async()=>{await reloadUser(user).catch(()=>{});if(auth.currentUser?.emailVerified)startSession(auth.currentUser);else showVerify(user,'Not confirmed yet — tap the link in the email first.');};
-  $('#vOut').onclick=()=>signOut(auth);
+  $('#lGo').onclick=()=>go(false);
+  $('#lNew').onclick=()=>go(true);
 }
 function showNoAccess(email,disabled){
   authScreen(`<h1>${disabled?'Access switched off':'No access yet'}</h1>
     <p style="font-size:14px">${disabled?`The login for <b>${esc(email)}</b> has been switched off.`:`<b>${esc(email)}</b> is signed in, but hasn't been given access to PML Snagging.`} Please contact PML.</p>
     <button class="btn btn-o btn-block" id="naOut">Sign out</button>`);
-  $('#naOut').onclick=()=>signOut(auth);
+  $('#naOut').onclick=doSignOut;
+}
+async function doSignOut(){
+  // Signing out clears this device, so warn if some changes haven't uploaded yet.
+  const n=pendingWrites();
+  if(n&&!await confirmBox('Sign out?',`${n} change${n==1?' hasn\'t':'s haven\'t'} uploaded yet. If you sign out now ${n==1?'it':'they'} will be lost. Wait until you have signal to keep ${n==1?'it':'them'}.`,'Sign out anyway'))return;
+  stopAll();authScreen('<p class="muted" style="text-align:center">Signing out…</p>');
+  signingIn=null;
+  await signOut(auth).catch(()=>{});
+  if(!await workosSignOut())showLogin('Signed out.',true);
 }
 
 let meUnsub=null;
@@ -501,17 +491,33 @@ function stopAll(){
   for(const o of [SNAGS,DRAW,USERS])for(const k in o)delete o[k];
   JOBS=[];jobsLoaded=false;ME=null;VIEW.cleanup?.();VIEW={};
 }
+// Coming back from the AuthKit page: swap the WorkOS login for a PML Snagging session.
+// AuthKit's "Sign-in endpoint" (…/?sign-in) starts a sign-in straight away, e.g. from an invitation email.
+setSessionRefresher(refreshSession);
+setRefusedHandler(e=>toast('A change made earlier was refused: '+(e.message||e.code),6000));
+let signingIn=null;
+const signingInScreen=()=>authScreen('<p class="muted" style="text-align:center">Signing you in…</p>');
+if(returningFromSignIn){
+  signingIn=finishSignIn().catch(err=>{
+    if(!signingIn)return;
+    const m={'not-verified':err.message,'no-email':err.message,'network':'No signal, or the sign-in service can\'t be reached. Try again when you have signal.'}[err.code]||err.message||String(err);
+    signingIn=null;showLogin(m);
+  }).finally(()=>{signingIn=null;});
+}else if(startSignInRequested&&navigator.onLine){
+  const t=new URLSearchParams(location.search).get('invitation_token')||undefined;
+  history.replaceState({},'',location.pathname);
+  signingIn=workosSignIn({invitationToken:t}).catch(()=>{signingIn=null;showLogin();});
+}
 onAuthStateChanged(auth,user=>{
   stopAll();
-  if(!user){showLogin();return;}
-  if(!user.emailVerified){showVerify(user);return;}
+  if(!user){if(signingIn)signingInScreen();else showLogin();return;}
   startSession(user);
 });
 function startSession(user){
   stopAll();
-  const email=low(user.email);
+  const email=low(user.uid);
   authScreen('<p class="muted" style="text-align:center">Loading…</p>');
-  let slow=setTimeout(()=>{if(!ME)authScreen('<p style="text-align:center;font-size:14px">Still connecting… If you have no signal, this device needs to have been signed in with signal at least once.</p><button class="linkbtn" id="so">Sign out</button>'),$('#so')&&($('#so').onclick=()=>signOut(auth));},12000);
+  let slow=setTimeout(()=>{if(!ME)authScreen('<p style="text-align:center;font-size:14px">Still connecting… If you have no signal, this device needs to have been signed in with signal at least once.</p><button class="linkbtn" id="so">Sign out</button>'),$('#so')&&($('#so').onclick=doSignOut);},12000);
   meUnsub=onSnapshot(doc(db,'users',email),{includeMetadataChanges:true},snap=>{
     if(!snap.exists()){
       if(OWNER_EMAILS.map(low).includes(email)){
@@ -527,7 +533,7 @@ function startSession(user){
     const roleChanged=!ME||ME.role!==d.role;
     ME={...d,email};
     if(roleChanged)startData();else{drawTopbar();bump();}
-  },err=>{clearTimeout(slow);console.error(err);authScreen(`<h1>Can't load your account</h1><p style="font-size:14px">${esc(err.code||err.message)}</p><button class="btn btn-o btn-block" id="so">Sign out</button>`);$('#so').onclick=()=>signOut(auth);});
+  },err=>{clearTimeout(slow);console.error(err);authScreen(`<h1>Can't load your account</h1><p style="font-size:14px">${esc(err.code||err.message)}</p><button class="btn btn-o btn-block" id="so">Sign out</button>`);$('#so').onclick=doSignOut;});
 }
 
 /* ═════════════ live data ═════════════ */
@@ -614,10 +620,9 @@ function drawTopbar(){
       <a href="#/">${isCon()?'📋 My snags':'🏗 Jobs'}</a>
       ${isStaff()?'<a href="#/library">⚙ Trades &amp; main contractor list</a>':''}
       ${isAdmin()?'<a href="#/users">👥 Users &amp; permissions</a>':''}
-      <button id="mPw">🔑 Change my password</button><button id="mOut">Sign out</button>`;
+      <button id="mOut">Sign out</button>`;
     $('#topbar').append(m);
-    m.querySelector('#mOut').onclick=()=>signOut(auth);
-    m.querySelector('#mPw').onclick=async()=>{m.remove();try{await sendPasswordResetEmail(auth,ME.email);toast('Password email sent to '+ME.email,4000);}catch(e){toast('Needs signal: '+(e.code||e.message));}};
+    m.querySelector('#mOut').onclick=doSignOut;
     setTimeout(()=>document.addEventListener('click',()=>m.remove(),{once:true}),0);
   };
 }
@@ -793,7 +798,7 @@ async function uploadDrawing(j){
   }catch(e){console.error(e);toast(navigator.onLine?'Could not read that file':'PDFs need signal the first time — or upload a JPG/PNG');}
 }
 function saveDrawing(jid,{name,level,url,w:W,h:H,thumb,order}){
-  // Firestore documents max out at 1MB, so the drawing is split into ~900KB pieces.
+  // The drawing is uploaded in ~900KB pieces so each upload stays a sensible size on site signal.
   const ref=doc(collection(db,'jobs',jid,'drawings'));
   const size=900000,n=Math.ceil(url.length/size);
   let b=writeBatch(db),cnt=0;
@@ -855,21 +860,27 @@ function saveLib(now){
 function accessBadge(email,name){
   email=low(email);if(!email)return'';
   const u=USERS[email];
-  if(u)return u.active?`<span class="chip ok">✓ Has login (${esc(ROLES[u.role]||u.role)})</span>`:`<span class="chip warn">Login switched off</span>`;
+  if(u)return u.active?`<span class="chip ok">✓ Has access (${esc(ROLES[u.role]||u.role)})</span>`:`<span class="chip warn">Access switched off</span>`;
   return `<span class="chip">No login yet</span><button class="btn btn-o btn-sm" data-invite="${esc(email)}" data-name="${esc(name||'')}">Give app access</button>`;
 }
 async function invite(email,name,role='contractor',ask=true){
   email=low(email);
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('That email address doesn\'t look right');return false;}
-  if(!navigator.onLine){toast('You need signal to create a login');return false;}
-  if(ask&&!await modal('Give app access',`<p>Create a <b>${esc(ROLES[role])}</b> login for <b>${esc(email)}</b>?</p><p class="meta">They'll get an email to set their own password. ${role==='contractor'?'They will only see snags assigned to their company on jobs where this email is listed.':''}</p>`,{ok:'Create login & send email'}))return false;
-  try{await createAccount(email);}
-  catch(e){if(e.code!=='auth/email-already-in-use'){toast('Could not create login: '+(e.code||e.message),5000);return false;}}
+  if(!navigator.onLine){toast('You need signal to give app access');return false;}
+  if(ask&&!await modal('Give app access',`<p>Give <b>${esc(email)}</b> <b>${esc(ROLES[role])}</b> access?</p><p class="meta">They'll get an email invitation to create their PML Snagging login. ${role==='contractor'?'They will only see snags assigned to their company on jobs where this email is listed.':''}</p>`,{ok:'Give access & send invite'}))return false;
+  try{await setDoc(doc(db,'users',email),{email,name:name||email.split('@')[0],role,active:true,createdAt:Date.now(),createdBy:ME.email});}
+  catch(e){toast('Could not give access: '+(e.code||e.message),5000);return false;}
+  await emailInvite(email);
+  return true;
+}
+// Sends (or resends) the WorkOS invitation email. Access itself comes from the users/{email} record,
+// so even if the email fails they can sign up themselves with that address.
+async function emailInvite(email){
+  if(!navigator.onLine){toast('You need signal to send an invite');return;}
   try{
-    await setDoc(doc(db,'users',email),{email,name:name||email.split('@')[0],role,active:true,createdAt:Date.now(),createdBy:ME.email});
-    await sendPasswordResetEmail(auth,email);
-    toast(`Login created — password email sent to ${email}`,4500);return true;
-  }catch(e){toast('Could not finish: '+(e.code||e.message),5000);return false;}
+    const s=await sendInvite(email);
+    toast(s==='has-login'?`${email} already has a login — they can sign in now`:`Invite ${s==='resent'?'sent again':'sent'} to ${email}`,4500);
+  }catch(e){toast(`Couldn't email the invite (${e.message}). They can still tap "Create your login" in the app using ${email}.`,7000);}
 }
 
 function contractorEditor(host,getList,onChange,{forJob}={}){
@@ -989,20 +1000,34 @@ function viewUsers(){
       ${list.map(u=>{const me=u.email===ME.email;return`<tr data-e="${esc(u.email)}"><td><input type="text" data-k="name" value="${esc(u.name)}"></td><td>${esc(u.email)}</td>
         <td><select data-k="role" ${me?'disabled':''}>${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select></td>
         <td><label class="row" style="gap:6px;font-size:13px"><input type="checkbox" data-k="active" ${u.active?'checked':''} ${me?'disabled':''}> ${u.active?'On':'Off'}</label></td>
-        <td><button class="btn btn-o btn-sm" data-pw>Send password email</button></td></tr>`;}).join('')}
+        <td>${me?'':'<button class="btn btn-o btn-sm" data-pw>Resend invite</button>'}</td></tr>`;}).join('')}
       </tbody></table></div>
-      <p class="meta" style="margin-top:10px">Turning access off stops someone logging in to the app straight away. Contractors see snags when their email is listed on a job's contractor.</p></div>`;
+      <p class="meta" style="margin-top:10px">Turning access off stops someone logging in to the app straight away. Contractors see snags when their email is listed on a job's contractor.</p>
+      <div class="card" style="padding:14px;margin-top:20px"><b>Move data across from Firebase</b>
+        <p class="meta" style="margin:6px 0 10px">One-off: choose the <code>firebase-export.json</code> file made by <code>migrate/export-firestore.mjs</code>. Jobs, drawings, snags, photos, users and settings are copied in. Only run it once: running it again puts the Firebase copies back over any changes made since.</p>
+        <button class="btn btn-o btn-sm" id="impFb">Choose export file…</button> <span class="meta" id="impMsg"></span></div></div>`;
+    $('#impFb').onclick=async()=>{
+      if(!navigator.onLine){toast('You need signal to import');return;}
+      const [f]=await pickFiles('.json,application/json');if(!f)return;
+      let docs;try{docs=JSON.parse(await f.text()).docs;}catch{toast('That isn\'t a Firebase export file');return;}
+      if(!Array.isArray(docs)){toast('That isn\'t a Firebase export file');return;}
+      if(!await modal('Import from Firebase',`<p>Copy <b>${docs.length}</b> items into PML Snagging?</p><p class="meta">Keep the app open until it finishes.</p>`,{ok:'Import'}))return;
+      const msg=$('#impMsg'),btn=$('#impFb');btn.disabled=true;
+      try{const n=await importDocs(docs,(d,t)=>{if(msg.isConnected)msg.textContent=`Copied ${d} of ${t}…`;});toast(`Imported ${n} items`,4000);if(msg.isConnected)msg.textContent=`Done: ${n} items copied.`;}
+      catch(e){toast('Import stopped: '+(e.message||e.code),6000);if(msg.isConnected)msg.textContent='Stopped: '+(e.message||e.code);}
+      finally{btn.disabled=false;}
+    };
     document.querySelectorAll('tr[data-e]').forEach(tr=>{
       const e=tr.dataset.e,ref=doc(db,'users',e);
       tr.querySelector('[data-k=name]').onchange=ev=>w(updateDoc(ref,{name:ev.target.value}));
       tr.querySelector('[data-k=role]').onchange=ev=>w(updateDoc(ref,{role:ev.target.value}));
       tr.querySelector('[data-k=active]').onchange=ev=>w(updateDoc(ref,{active:ev.target.checked}));
-      tr.querySelector('[data-pw]').onclick=async()=>{try{await sendPasswordResetEmail(auth,e);toast('Password email sent to '+e);}catch(err){toast('Needs signal: '+(err.code||err.message));}};
+      const pw=tr.querySelector('[data-pw]');if(pw)pw.onclick=()=>emailInvite(e);
     });
     $('#addU').onclick=async()=>{
       const v=await modal('Add user',`<div class="f"><label>Name</label><input name="name"></div><div class="f"><label>Email</label><input name="email" type="email"></div>
         <div class="f"><label>Role</label><select name="role"><option value="manager">Site manager</option><option value="admin">Admin</option><option value="contractor">Contractor</option></select></div>
-        <p class="meta">They'll get an email from PML Snagging to set their own password.</p>`,{ok:'Create login & send email'});
+        <p class="meta">They'll get an email invitation to create their PML Snagging login.</p>`,{ok:'Give access & send invite'});
       if(v&&v.email)await invite(v.email,v.name,v.role,false);
     };
   }

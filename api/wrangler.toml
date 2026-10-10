@@ -1,0 +1,17 @@
+# PML Snagging API (Cloudflare Worker). Deploy with:  npx wrangler deploy
+name = "pml-snagging-api"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# WorkOS dashboard → API Keys → Client ID
+WORKOS_CLIENT_ID = "client_YOUR-WORKOS-CLIENT-ID"
+# Websites allowed to use the API (comma separated)
+ALLOWED_ORIGINS = "https://austin-gif12.github.io"
+# Always admin (comma separated). Same as OWNER_EMAILS in config.js.
+OWNER_EMAILS = "austin@planningmanager.co.uk"
+
+# Secrets (never in this file). Set them with:
+#   npx wrangler secret put WORKOS_API_KEY     (WorkOS sk_… key)
+#   npx wrangler secret put DATABASE_URL       (PlanetScale Postgres connection string)
