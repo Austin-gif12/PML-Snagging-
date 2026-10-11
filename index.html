@@ -1132,6 +1132,7 @@ async function viewAreas(jobId,dwgId){
       <select id="dsel">${list.map(x=>`<option value="${x.id}" ${x.id===d.id?'selected':''}>${esc(x.level?x.level+' – ':'')}${esc(x.name)}</option>`).join('')}</select>
       <span class="spacer"></span>
       <button class="btn btn-o btn-sm" id="panBtn" title="Switch between marking areas and moving the drawing around (or hold Space)">✋ <span class="lbl">Pan</span></button>
+      ${list.length>1?`<button class="btn btn-o btn-sm" id="copyAll" title="Put these same areas, with the same names, on every other drawing in this job">⧉ Copy to all floors</button>`:''}
       <a class="btn btn-y btn-sm" href="#/job/${jobId}/${next?'areas/'+next.id:'drawing/'+d.id}">${next?'Next drawing →':'✓ Done'}</a>
     </div>
     <div class="vbody">
@@ -1158,6 +1159,17 @@ async function viewAreas(jobId,dwgId){
     areas=clone(areasOf(jobId,d.id));drawAll();
   };
   $('#panBtn').onclick=()=>{panMode=!panMode;setCursor();};
+  $('#copyAll')&&($('#copyAll').onclick=async()=>{
+    if(!areas.length){toast('Mark some areas on this drawing first');return;}
+    const others=(DRAW[jobId]||[]).filter(x=>x.id!==d.id),had=others.filter(x=>x.areas?.length);
+    if(!await modal('Copy to all floors',`<p>Put these <b>${areas.length} area${areas.length==1?'':'s'}</b>, with the same names, on the other <b>${others.length} drawing${others.length==1?'':'s'}</b> in this job?</p>
+      ${had.length?`<p style="margin-top:8px">⚠ This replaces the areas already marked on: <b>${had.map(x=>esc(x.level?x.level+' – '+x.name:x.name)).join(', ')}</b>.</p>`:''}
+      <p class="meta" style="margin-top:8px">Boxes are placed in the same position on each sheet, so this works best when the floor plans line up. Snags already on those drawings keep their location.</p>`,{ok:'⧉ Copy to all'}))return;
+    const b=writeBatch(db);
+    others.forEach(x=>b.update(doc(db,'jobs',jobId,'drawings',x.id),{areas:areas.map(a=>({...a,id:Math.random().toString(36).slice(2,10)}))}));
+    w(b.commit());
+    toast(`Areas copied to ${others.length} drawing${others.length==1?'':'s'}`);
+  });
 
   try{
     const url=await loadDrawing(jobId,d);
