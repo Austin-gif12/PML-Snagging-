@@ -1623,15 +1623,30 @@ function flushDebounce(sn){for(const k of Object.keys(debT))if(k.startsWith(sn.i
 addEventListener('pagehide',()=>{for(const k of Object.keys(debT)){clearTimeout(debT[k].t);debT[k].run();delete debT[k];}});
 
 /* ═════════════ reports ═════════════ */
-const RF={contractor:'',status:'notclosed',photos:true,overview:true};
+const RF={contractor:'',level:'',location:'',status:'notclosed',photos:true,overview:true};
+const locKey=s=>String(s||'').trim().toLowerCase();
 function tabReports(j){
   const b=$('#tabBody');
   const cons=j.contractors||[];
-  const rows=cons.map(c=>{const l=snagsOf(j.id).filter(s=>s.contractorId===c.id);return{c,all:l.length,open:l.filter(s=>s.status==='open'||s.status==='progress').length,ready:l.filter(s=>s.status==='ready').length};}).filter(x=>x.all);
+  const dwgs=DRAW[j.id]||[],dmap=Object.fromEntries(dwgs.map(d=>[d.id,d]));
+  const lvlOf=s=>dmap[s.drawingId]?.level||'';
+  const all=snagsOf(j.id);
+  const rows=cons.map(c=>{const l=all.filter(s=>s.contractorId===c.id);return{c,all:l.length,open:l.filter(s=>s.status==='open'||s.status==='progress').length,ready:l.filter(s=>s.status==='ready').length};}).filter(x=>x.all);
+  // one row per floor + location, since copied areas share names across floors
+  const groups=new Map();
+  for(const s of all){
+    const k=lvlOf(s)+'\u0000'+locKey(s.location);
+    if(!groups.has(k))groups.set(k,{level:lvlOf(s),location:String(s.location||'').trim(),list:[]});
+    groups.get(k).list.push(s);
+  }
+  const locRows=[...groups.values()].sort((a,b)=>(a.level||'~').localeCompare(b.level||'~',undefined,{numeric:true})||(a.location||'~').localeCompare(b.location||'~',undefined,{numeric:true}));
+  const levels=[...new Set(dwgs.map(d=>d.level).filter(Boolean))];
   b.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
     <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:12px">
       <h2>Generate a report</h2>
       <div class="f"><label>Contractor</label><select id="rc"><option value="">All contractors (full job report)</option>${cons.map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('')}</select></div>
+      <div class="f2"><div class="f"><label>Floor / level</label><select id="rl"><option value="">All floors</option>${levels.map(l=>`<option>${esc(l)}</option>`).join('')}</select></div>
+        <div class="f"><label>Location / area</label><select id="rloc"></select></div></div>
       <div class="f"><label>Which snags</label><select id="rs"><option value="notclosed">Outstanding (not signed off)</option><option value="">All snags</option>${STATUSES.map(s=>`<option value="${s.k}">${s.label} only</option>`).join('')}</select></div>
       <label class="row" style="font-size:13px"><input type="checkbox" id="ro"> Include drawing overview (every pin on each level)</label>
       <label class="row" style="font-size:13px"><input type="checkbox" id="rp"> Include photos</label>
@@ -1640,17 +1655,38 @@ function tabReports(j){
     <div class="card" style="padding:16px"><h2 style="margin-bottom:10px">By contractor</h2>
       ${rows.length?`<table class="tbl"><thead><tr><th>Contractor</th><th>Open</th><th>To sign off</th><th>Total</th><th></th></tr></thead><tbody>
       ${rows.map(x=>`<tr><td><b>${esc(x.c.company)}</b></td><td>${x.open}</td><td>${x.ready}</td><td>${x.all}</td><td><button class="btn btn-o btn-sm" data-c="${x.c.id}">Report</button></td></tr>`).join('')}</tbody></table>`:'<p class="muted">No snags assigned yet.</p>'}
+    </div>
+    <div class="card" style="padding:16px;grid-column:1/-1"><h2 style="margin-bottom:10px">By location</h2>
+      ${locRows.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Floor / level</th><th>Location</th><th>Contractors</th><th>Open</th><th>To sign off</th><th>Total</th><th></th></tr></thead><tbody>
+      ${locRows.map((x,i)=>{const names=[...new Set(x.list.map(s=>s.contractorName).filter(Boolean))];
+        return`<tr><td>${esc(x.level||'—')}</td><td><b>${esc(x.location||'No location set')}</b></td><td>${names.length?esc(names.join(', ')):'<span class="muted">Not assigned</span>'}</td>
+        <td>${x.list.filter(s=>s.status==='open'||s.status==='progress').length}</td><td>${x.list.filter(s=>s.status==='ready').length}</td><td>${x.list.length}</td>
+        <td>${x.location?`<button class="btn btn-o btn-sm" data-l="${i}">Report</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="muted">No snags yet.</p>'}
     </div></div>`;
+  const fillLoc=()=>{
+    // locations on the chosen floor: from snags and from the areas marked on its drawings
+    const onLvl=d=>!$('#rl').value||d.level===$('#rl').value;
+    const names=new Map();
+    all.filter(s=>dmap[s.drawingId]&&onLvl(dmap[s.drawingId])).forEach(s=>{const n=String(s.location||'').trim();if(n&&!names.has(locKey(n)))names.set(locKey(n),n);});
+    dwgs.filter(onLvl).forEach(d=>(d.areas||[]).forEach(a=>{if(!names.has(locKey(a.name)))names.set(locKey(a.name),a.name);}));
+    const cur=$('#rloc').value||RF.location;
+    $('#rloc').innerHTML=`<option value="">All locations</option>${[...names.values()].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(n=>`<option>${esc(n)}</option>`).join('')}`;
+    $('#rloc').value=[...names.values()].find(n=>locKey(n)===locKey(cur))||'';
+  };
   $('#rc').value=RF.contractor;if($('#rc').value!==RF.contractor)RF.contractor='';
+  $('#rl').value=RF.level;if($('#rl').value!==RF.level)RF.level='';
+  fillLoc();$('#rl').onchange=fillLoc;
   $('#rs').value=RF.status;$('#ro').checked=RF.overview;$('#rp').checked=RF.photos;
-  const read=()=>{RF.contractor=$('#rc').value;RF.status=$('#rs').value;RF.overview=$('#ro').checked;RF.photos=$('#rp').checked;};
+  const read=()=>{RF.contractor=$('#rc').value;RF.level=$('#rl').value;RF.location=$('#rloc').value;RF.status=$('#rs').value;RF.overview=$('#ro').checked;RF.photos=$('#rp').checked;};
   const go=()=>{
     const con=cons.find(c=>c.id===RF.contractor);
-    const list=snagsOf(j.id).filter(s=>(!con||s.contractorId===con.id)&&(!RF.status||(RF.status==='notclosed'?s.status!=='closed':s.status===RF.status))).sort((a,b)=>a.no-b.no);
-    buildReport(j,list,{con,photos:RF.photos,overview:RF.overview,scope:RF.status==='notclosed'?'Outstanding (not signed off)':RF.status?ST[RF.status].label+' only':'All'});
+    const list=all.filter(s=>(!con||s.contractorId===con.id)&&(!RF.level||lvlOf(s)===RF.level)&&(!RF.location||locKey(s.location)===locKey(RF.location))
+      &&(!RF.status||(RF.status==='notclosed'?s.status!=='closed':s.status===RF.status))).sort((a,b)=>a.no-b.no);
+    buildReport(j,list,{con,level:RF.level,location:RF.location,photos:RF.photos,overview:RF.overview,scope:RF.status==='notclosed'?'Outstanding (not signed off)':RF.status?ST[RF.status].label+' only':'All'});
   };
   $('#gen').onclick=()=>{read();go();};
-  b.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>{read();RF.contractor=x.dataset.c;go();});
+  b.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>{read();Object.assign(RF,{contractor:x.dataset.c,level:'',location:''});go();});
+  b.querySelectorAll('[data-l]').forEach(x=>x.onclick=()=>{read();const r=locRows[x.dataset.l];Object.assign(RF,{contractor:'',level:r.level,location:r.location});go();});
 }
 function drawPinOnCanvas(ctx,x,y,label,color,scale=1){
   ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
@@ -1677,7 +1713,7 @@ function overview(im,list){
   list.forEach(sn=>drawPinOnCanvas(x,sn.x*cw,sn.y*ch,String(sn.no),ST[sn.status].c,1.1));
   return c.toDataURL('image/jpeg',.85);
 }
-async function buildReport(j,list,{con,photos=true,overview:ov=true,scope='',title='Snagging Report'}={}){
+async function buildReport(j,list,{con,level='',location='',photos=true,overview:ov=true,scope='',title='Snagging Report'}={}){
   if(!list.length){toast('No snags match those options');return;}
   ensureDrawings(j.id);
   if(!DRAW[j.id]){toast('Drawings still loading — try again in a moment');return;}
@@ -1688,17 +1724,25 @@ async function buildReport(j,list,{con,photos=true,overview:ov=true,scope='',tit
   const c=countBy(list);
   const conName=con?.company||(isCon()?[...new Set(list.map(s=>s.contractorName))].join(', '):'All contractors');
   const contact=con?[con.phone,con.email].filter(Boolean).join(' · '):'';
+  const where=[level,location].filter(Boolean).join(' – ');
+  // who's responsible for what, when the report covers more than one contractor
+  const byCon=con||isCon()?[]:[...new Set(list.map(s=>s.contractorId||''))].map(id=>{const l=list.filter(s=>(s.contractorId||'')===id),k=(j.contractors||[]).find(c=>c.id===id);
+    return{name:k?.company||l[0].contractorName||'Not assigned',contact:k?[k.phone,k.email].filter(Boolean).join(' · '):'',c:countBy(l),n:l.length};}).sort((a,b)=>a.name.localeCompare(b.name));
   let html=`<div class="rbar"><button class="btn btn-ghost btn-sm" id="rback">← Back</button><b style="font-family:var(--ffh)">${esc(title)}</b><span class="spacer"></span><button class="btn btn-y" id="rprint">🖨 Print / Save as PDF</button></div>
   <div class="sheet">
-    <div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">${esc(title)}</div><div class="s">${esc(conName)}</div></div>
+    <div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">${esc(title)}</div><div class="s">${esc(where?where+' · '+conName:conName)}</div></div>
       <div class="d">Report date<br><b>${fmtDate(Date.now())}</b></div></div>
     <div class="r-info">
       <div><b>Job</b>${esc(j.name)}</div><div><b>Job ref</b>${esc(j.ref||'—')}</div>
       <div><b>Site address</b>${esc(j.address||'—')}</div><div><b>Client / main contractor</b>${esc(j.client||'—')}</div>
       <div><b>Contractor</b>${esc(conName)}</div><div><b>Contact</b>${esc(contact||'—')}</div>
+      ${where?`<div><b>Floor / level</b>${esc(level||'All floors')}</div><div><b>Location</b>${esc(location||'All locations')}</div>`:''}
       <div><b>Snags included</b>${esc(scope||'As listed')}</div><div><b>Total in report</b>${list.length}</div>
     </div>
     <div class="r-sum">${STATUSES.map(s=>`<div style="border-top-color:${s.c}"><b>${c[s.k]}</b><span>${s.label}</span></div>`).join('')}</div>
+    ${byCon.length?`<div class="r-h2">Contractors</div>
+    <table class="r-tbl"><thead><tr><th>Contractor</th><th>Contact</th>${STATUSES.map(s=>`<th>${s.label}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+    ${byCon.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.contact||'—')}</td>${STATUSES.map(s=>`<td>${x.c[s.k]||0}</td>`).join('')}<td><b>${x.n}</b></td></tr>`).join('')}</tbody></table>`:''}
     <div class="r-h2">Snag summary</div>
     <table class="r-tbl"><thead><tr><th>No.</th><th>Defect</th>${con?'':'<th>Contractor</th>'}<th>Level</th><th>Location</th><th>Responsible</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead><tbody>
     ${list.map(s=>`<tr><td><b>${snagNo(s.no)}</b></td><td>${esc(s.type||'—')}</td>${con?'':`<td>${esc(s.contractorName||'—')}</td>`}<td>${esc(dmap[s.drawingId]?.level||'')}</td><td>${esc(s.location||'')}</td><td>${esc(s.personName||'—')}</td><td>${esc(s.priority||'')}</td><td>${fmtDate(s.due)}</td><td>${esc(ST[s.status]?.label||s.status)}</td></tr>`).join('')}
