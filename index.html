@@ -159,6 +159,21 @@ body.viewer-mode{overflow:hidden}
 .zoom-ctl{position:absolute;right:12px;bottom:calc(12px + var(--safe-bottom));display:flex;flex-direction:column;gap:6px;z-index:4}
 .hint{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:var(--yellow);color:var(--black);font:700 12.5px var(--ffh);padding:8px 14px;border-radius:99px;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:4;display:none;white-space:nowrap;pointer-events:none}
 .hint.show{display:block}
+.areas{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.area{position:absolute;border:2px solid var(--yellow);background:rgba(252,191,42,.15)}
+.area span{position:absolute;left:-2px;bottom:100%;background:var(--yellow);color:var(--black);font:700 11px var(--ffh);padding:2px 6px;border-radius:5px 5px 0 0;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.area.sel{border-color:#e8590c;background:rgba(232,89,12,.2)}
+.area.sel span{background:#e8590c;color:#fff}
+.area.ghost{border-style:dashed;background:rgba(252,191,42,.25)}
+.areas.faint .area{border-style:dashed;background:rgba(252,191,42,.07)}
+.areas.faint .area span{opacity:.85}
+.viewer.marking{cursor:crosshair}
+.viewer.marking.panning{cursor:grab}
+.apanel .dbody{gap:8px}
+.arow{display:flex;gap:6px;align-items:center}
+.arow input{flex:1;min-width:0;border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;font-size:14px;min-height:40px}
+.arow.sel input{border-color:#e8590c;box-shadow:0 0 0 3px rgba(232,89,12,.18)}
+.arow input:focus{outline:none}
 .legend{position:absolute;left:12px;bottom:calc(12px + var(--safe-bottom));background:rgba(255,255,255,.94);border-radius:10px;padding:8px 10px;font-size:11.5px;display:flex;gap:10px;flex-wrap:wrap;z-index:4;max-width:calc(100% - 90px)}
 
 /* drawer */
@@ -313,6 +328,7 @@ body.show-report #report{display:block}
   .hero .kpis{margin-left:0}
   .drawer{position:absolute;left:0;right:0;bottom:0;width:auto;max-height:75%;border-left:none;border-top:3px solid var(--yellow);border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.35);z-index:6}
   .vbar select{max-width:150px}
+  .drawer.apanel{max-height:34%}
   .vbar .lbl{display:none}
   .sheet{width:100%;min-height:0;padding:14px}
   .r-snag .sb{grid-template-columns:1fr}
@@ -375,6 +391,7 @@ function modal(title,body,{ok='Save',danger=false,cancel='Cancel'}={}){
     const close=v=>{bg.remove();res(v);};
     bg.querySelector('[data-x]')?.addEventListener('click',()=>close(null));
     bg.onclick=e=>{if(e.target===bg)close(null);};
+    bg.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('input')){e.preventDefault();bg.querySelector('[data-ok]').click();}});
     bg.querySelector('[data-ok]').onclick=()=>{const v={};bg.querySelectorAll('[name]').forEach(i=>v[i.name]=i.type==='checkbox'?i.checked:i.value);close(v);};
     document.body.append(bg);
     bg.querySelector('input,select,textarea')?.focus();
@@ -645,6 +662,7 @@ function route(){
     }
     ensureDrawings(j.id);
     if(p[2]==='drawing')return viewDrawing(j.id,p[3],p[4]);
+    if(p[2]==='areas'&&isAdmin())return viewAreas(j.id,p[3]);
     if(isStaff())return viewJob(j.id,p[2]||'drawings');
     return viewMySnags(j.id);
   }
@@ -747,8 +765,9 @@ function tabDrawings(j){
     const n=snagsOf(j.id).filter(s=>s.drawingId===d.id),open=n.filter(s=>s.status!=='closed').length;
     const el=document.createElement('div');el.className='card dwg-card';
     el.innerHTML=`<div class="thumb" style="${d.thumb?`background-image:url('${d.thumb}')`:''}"><span class="lvl">${esc(d.level||'—')}</span></div><div class="body"><b>${esc(d.name)}</b><span class="chip">${open} open / ${n.length}</span>
-      <button class="x" title="Edit" data-e>✎</button><button class="x" title="Delete" data-d>✕</button></div>`;
-    el.onclick=e=>{if(e.target.closest('[data-e],[data-d]'))return;location.hash=`#/job/${j.id}/drawing/${d.id}`;};
+      ${isAdmin()?'<button class="x" title="Mark rooms / areas" data-a>▭</button>':''}<button class="x" title="Edit" data-e>✎</button><button class="x" title="Delete" data-d>✕</button></div>`;
+    el.onclick=e=>{if(e.target.closest('[data-a],[data-e],[data-d]'))return;location.hash=`#/job/${j.id}/drawing/${d.id}`;};
+    if(isAdmin())el.querySelector('[data-a]').onclick=()=>location.hash=`#/job/${j.id}/areas/${d.id}`;
     el.querySelector('[data-e]').onclick=async()=>{const v=await drawingForm(d.name,d.level);if(v)w(updateDoc(doc(db,'jobs',j.id,'drawings',d.id),{name:v.name||d.name,level:v.level}));};
     el.querySelector('[data-d]').onclick=async()=>{
       if(!await confirmBox('Delete drawing',`Delete <b>${esc(d.name)}</b>${n.length?` and its ${n.length} snag${n.length==1?'':'s'}`:''}?`))return;
@@ -789,12 +808,14 @@ async function uploadDrawing(j){
         pages.push(c);
       }
     }else pages.push(await loadEl(await fileToDataURL(f)));
-    const existing=(DRAW[j.id]||[]).length;
+    const existing=(DRAW[j.id]||[]).length,ids=[];
     for(const [i,src] of pages.entries()){
       const full=await scaleImage(src,3600,.8),thumb=await scaleImage(src,480,.7);
-      saveDrawing(j.id,{name:(v.name||base)+(pages.length>1?` – p${i+1}`:''),level:v.level,url:full.url,w:full.w,h:full.h,thumb:thumb.url,order:Date.now()+existing+i});
+      ids.push(saveDrawing(j.id,{name:(v.name||base)+(pages.length>1?` – p${i+1}`:''),level:v.level,url:full.url,w:full.w,h:full.h,thumb:thumb.url,order:Date.now()+existing+i}));
     }
-    toast(pages.length>1?`${pages.length} drawings added`:'Drawing added');
+    // straight on to marking out the rooms/areas, so new snags can pick up their location
+    if(isAdmin()){location.hash=`#/job/${j.id}/areas/${ids[0]}`;toast((pages.length>1?`${pages.length} drawings added`:'Drawing added')+' — now drag over each room and name it',4000);}
+    else toast(pages.length>1?`${pages.length} drawings added`:'Drawing added');
   }catch(e){console.error(e);toast(navigator.onLine?'Could not read that file':'PDFs need signal the first time — or upload a JPG/PNG');}
 }
 function saveDrawing(jid,{name,level,url,w:W,h:H,thumb,order}){
@@ -806,6 +827,7 @@ function saveDrawing(jid,{name,level,url,w:W,h:H,thumb,order}){
   b.set(ref,{name,level,w:W,h:H,thumb,chunks:n,v:1,order,createdAt:Date.now(),createdBy:ME.email});
   w(b.commit());
   dwgMem[`dwg:${ref.id}:1`]=url;LC.set(`dwg:${ref.id}:1`,url).catch(()=>{});
+  return ref.id;
 }
 
 /* snag list */
@@ -1085,6 +1107,146 @@ function viewMySnags(onlyJob){
   }
 }
 
+/* ═════════════ drawing areas: drag a box over a room, name it, and snags dropped inside get that location ═════════════ */
+const areasOf=(jid,dwgId)=>(DRAW[jid]||[]).find(x=>x.id===dwgId)?.areas||[];
+// smallest box wins, so a room marked inside a bigger zone takes priority
+const areaAt=(areas,x,y)=>areas.filter(a=>x>=a.x&&x<=a.x+a.w&&y>=a.y&&y<=a.y+a.h).sort((a,b)=>a.w*a.h-b.w*b.h)[0]||null;
+function areaBoxes(el,areas,{tx,ty,s,W,H},selId){
+  el.innerHTML=areas.map(a=>`<div class="area${a.id===selId?' sel':''}${a.ghost?' ghost':''}" style="left:${tx+a.x*W*s}px;top:${ty+a.y*H*s}px;width:${a.w*W*s}px;height:${a.h*H*s}px">${a.name?`<span>${esc(a.name)}</span>`:''}</div>`).join('');
+}
+
+async function viewAreas(jobId,dwgId){
+  const back=`#/job/${jobId}`;
+  const list=DRAW[jobId];
+  if(!list){$('#app').innerHTML='<div class="empty">Loading drawing…</div>';VIEW.refresh=route;return;}
+  const idx=list.findIndex(x=>x.id===dwgId),d=list[idx];
+  // a drawing that's only just been uploaded can arrive a moment later, so try again when it does
+  if(!d){$('#app').innerHTML=`<div class="main"><div class="empty card"><b>Drawing not found</b>It may have been deleted. <a href="${back}">Go back</a></div></div>`;VIEW.refresh=route;return;}
+  const next=list[idx+1];
+  setCrumbs([['Jobs','#/'],[job(jobId).name,back],[d.name,`#/job/${jobId}/drawing/${d.id}`],['Areas']]);
+  document.body.classList.add('viewer-mode');
+  document.documentElement.style.setProperty('--tb',$('#topbar').offsetHeight+'px');
+  $('#app').innerHTML=`<div class="vwrap">
+    <div class="vbar">
+      <a class="btn btn-o btn-sm" href="${back}">← Back</a>
+      <select id="dsel">${list.map(x=>`<option value="${x.id}" ${x.id===d.id?'selected':''}>${esc(x.level?x.level+' – ':'')}${esc(x.name)}</option>`).join('')}</select>
+      <span class="spacer"></span>
+      <button class="btn btn-o btn-sm" id="panBtn" title="Switch between marking areas and moving the drawing around (or hold Space)">✋ <span class="lbl">Pan</span></button>
+      <a class="btn btn-y btn-sm" href="#/job/${jobId}/${next?'areas/'+next.id:'drawing/'+d.id}">${next?'Next drawing →':'✓ Done'}</a>
+    </div>
+    <div class="vbody">
+      <div class="viewer marking" id="viewer"><img class="plan" id="plan" alt=""><div class="areas" id="areas"></div>
+        <div class="vmsg" id="vmsg">Loading drawing…</div>
+        <div class="hint show" id="hint">Drag over a room or zone to mark it</div>
+        <div class="zoom-ctl"><button class="icon-btn" id="zin">＋</button><button class="icon-btn" id="zout">−</button><button class="icon-btn" id="zfit" title="Fit" style="font-size:14px">⤢</button></div></div>
+      <aside class="drawer apanel" id="apanel"></aside>
+    </div></div>`;
+  $('#dsel').onchange=e=>location.hash=`#/job/${jobId}/areas/${e.target.value}`;
+
+  const viewer=$('#viewer'),img=$('#plan'),boxes=$('#areas'),panel=$('#apanel');
+  let alive=true,s=1,tx=0,ty=0,minS=.05,maxS=4,W=d.w||1000,H=d.h||700,ready=false,panMode=false,space=false,sel=null,ghost=null;
+  let areas=clone(d.areas||[]);
+  const save=()=>{w(updateDoc(doc(db,'jobs',jobId,'drawings',d.id),{areas}));drawAll();};
+  const setCursor=()=>{const p=panMode||space;viewer.classList.toggle('panning',p);$('#panBtn').classList.toggle('on',panMode);$('#hint').textContent=p?'Drag to move the drawing':'Drag over a room or zone to mark it';};
+  const onKey=e=>{if(e.code!=='Space'||e.target.matches('input,textarea,select'))return;e.preventDefault();space=e.type==='keydown';setCursor();};
+  const onResize=()=>drawBoxes();
+  window.addEventListener('keydown',onKey);window.addEventListener('keyup',onKey);window.addEventListener('resize',onResize);
+  VIEW.cleanup=()=>{alive=false;window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onKey);window.removeEventListener('resize',onResize);};
+  VIEW.refresh=()=>{
+    if(!job(jobId)){location.hash='#/';return;}
+    if(document.querySelector('.modal-bg')||panel.contains(document.activeElement))return; // don't redraw under someone typing
+    areas=clone(areasOf(jobId,d.id));drawAll();
+  };
+  $('#panBtn').onclick=()=>{panMode=!panMode;setCursor();};
+
+  try{
+    const url=await loadDrawing(jobId,d);
+    await new Promise(res=>{img.onload=img.onerror=res;img.src=url;if(img.complete)res();});
+  }
+  catch(e){if(!alive)return;$('#vmsg').innerHTML=navigator.onLine?'Could not load this drawing.':'This drawing hasn\'t been downloaded to this device yet.<br>Open it once with signal and it will then work offline.';}
+  if(!alive)return;
+  if(img.naturalWidth){W=img.naturalWidth;H=img.naturalHeight;$('#vmsg').hidden=true;ready=true;}
+  img.style.width=W+'px';img.style.height=H+'px';
+
+  const apply=()=>{img.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;drawBoxes();};
+  const fit=()=>{const r=viewer.getBoundingClientRect();if(!r.width||!r.height){if(alive)requestAnimationFrame(fit);return;}s=Math.min(r.width/W,r.height/H)*.94;minS=s*.5;tx=(r.width-W*s)/2;ty=(r.height-H*s)/2;apply();};
+  const zoomAt=(f,cx,cy)=>{const ns=Math.max(minS,Math.min(maxS,s*f));tx=cx-(cx-tx)*(ns/s);ty=cy-(cy-ty)*(ns/s);s=ns;apply();};
+  const centre=()=>{const r=viewer.getBoundingClientRect();return[r.width/2,r.height/2];};
+  $('#zin').onclick=()=>zoomAt(1.4,...centre());
+  $('#zout').onclick=()=>zoomAt(1/1.4,...centre());
+  $('#zfit').onclick=fit;
+
+  function drawBoxes(){areaBoxes(boxes,ghost?[...areas,ghost]:areas,{tx,ty,s,W,H},sel);}
+  function drawPanel(){
+    panel.innerHTML=`<div class="dhead"><b style="font-family:var(--ffh)">Areas on this drawing</b><span class="chip">${areas.length}</span></div>
+      <div class="dbody">${areas.length?areas.map(a=>`<div class="arow${a.id===sel?' sel':''}" data-id="${a.id}"><input value="${esc(a.name)}" aria-label="Area name"><button class="x" title="Delete area">✕</button></div>`).join('')
+        :'<p class="muted" style="font-size:13px">Drag a box over a room or zone on the drawing, then give it a name. When you drop a snag pin inside that box, its <b>Location / room</b> is filled in for you.</p>'}
+      ${areas.length?'<p class="meta">Tap a box on the drawing to pick it here. Snags already on the drawing keep the location they have.</p>':''}</div>`;
+    panel.querySelectorAll('.arow').forEach(row=>{
+      const a=areas.find(z=>z.id===row.dataset.id),inp=row.querySelector('input');
+      inp.onfocus=()=>{sel=a.id;panel.querySelectorAll('.arow').forEach(r=>r.classList.toggle('sel',r===row));drawBoxes();};
+      inp.onchange=()=>{const n=inp.value.trim();if(!n){inp.value=a.name;return;}a.name=n;save();};
+      row.querySelector('button').onclick=()=>{areas=areas.filter(z=>z!==a);if(sel===a.id)sel=null;save();toast(`Removed ${a.name}`);};
+    });
+  }
+  function drawAll(){drawBoxes();drawPanel();}
+  function pick(id){sel=id;drawAll();const inp=panel.querySelector(`.arow[data-id="${id}"] input`);inp?.scrollIntoView({block:'nearest'});}
+
+  async function addArea(g){
+    const names=[...new Set((DRAW[jobId]||[]).flatMap(x=>(x.areas||[]).map(a=>a.name)))].sort();
+    const v=await modal('Name this area',`<div class="f"><label>Area / room name</label><input name="n" list="areaNames" placeholder="e.g. APT 01.04 – Bathroom" autocomplete="off">
+      <datalist id="areaNames">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
+      <p class="meta">Snags you drop inside this box will get this as their location.</p>`,{ok:'Save area'});
+    if(!alive)return;
+    ghost=null;
+    if(!v||!v.n.trim()){drawBoxes();return;}
+    const r=n=>Math.round(n*1e5)/1e5;
+    const a={id:Math.random().toString(36).slice(2,10),name:v.n.trim(),x:r(g.x),y:r(g.y),w:r(g.w),h:r(g.h)};
+    areas=[...areas,a];sel=a.id;save();
+  }
+
+  // pointer handling: drag to mark an area (or pan, in pan mode / holding Space), two fingers to pinch and move, wheel to zoom
+  const pts=new Map();let start=null,pinch=null;
+  const toPlan=(cx,cy)=>{const r=viewer.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(cx-r.left-tx)/(W*s))),y:Math.max(0,Math.min(1,(cy-r.top-ty)/(H*s)))};};
+  const mid=()=>{const [a,b]=[...pts.values()];return{x:(a.x+b.x)/2,y:(a.y+b.y)/2,d:Math.hypot(a.x-b.x,a.y-b.y)};};
+  viewer.addEventListener('pointerdown',e=>{
+    if(e.target.closest('.zoom-ctl'))return;
+    try{viewer.setPointerCapture(e.pointerId);}catch{}
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1)start={x:e.clientX,y:e.clientY,moved:false,pan:panMode||space||e.button!==0};
+    if(pts.size===2){pinch=mid();ghost=null;if(start)Object.assign(start,{moved:true,pan:true});drawBoxes();}
+  });
+  viewer.addEventListener('contextmenu',e=>e.preventDefault());
+  viewer.addEventListener('pointermove',e=>{
+    if(!pts.has(e.pointerId))return;
+    const prev=pts.get(e.pointerId),cur={x:e.clientX,y:e.clientY};pts.set(e.pointerId,cur);
+    if(pts.size===1&&start){
+      if(Math.hypot(cur.x-start.x,cur.y-start.y)>6)start.moved=true;
+      if(!start.moved)return;
+      if(start.pan){tx+=cur.x-prev.x;ty+=cur.y-prev.y;viewer.classList.add('dragging');apply();}
+      else if(ready){const a=toPlan(start.x,start.y),b=toPlan(cur.x,cur.y);ghost={id:'_',ghost:true,x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)};drawBoxes();}
+    }else if(pts.size===2&&pinch){
+      const m=mid(),r=viewer.getBoundingClientRect();
+      tx+=m.x-pinch.x;ty+=m.y-pinch.y;
+      zoomAt(m.d/pinch.d,m.x-r.left,m.y-r.top);pinch=m;
+    }
+  });
+  const up=e=>{
+    if(!pts.has(e.pointerId))return;
+    pts.delete(e.pointerId);viewer.classList.remove('dragging');
+    if(pts.size<2)pinch=null;
+    if(pts.size===0&&start){
+      if(ghost){if(ghost.w*W*s>12&&ghost.h*H*s>12)addArea(ghost);else{ghost=null;drawBoxes();}}
+      else if(!start.moved&&ready){const p=toPlan(e.clientX,e.clientY),a=areaAt(areas,p.x,p.y);if(a)pick(a.id);else if(sel){sel=null;drawAll();}}
+      start=null;
+    }
+  };
+  viewer.addEventListener('pointerup',up);viewer.addEventListener('pointercancel',up);
+  viewer.addEventListener('wheel',e=>{e.preventDefault();const r=viewer.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*.0015),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+
+  setCursor();drawPanel();fit();
+}
+
 /* ═════════════ drawing viewer with pins ═════════════ */
 function pinSVG(color){return`<svg viewBox="0 0 30 38"><path d="M15 37C15 37 2 22.5 2 14a13 13 0 0 1 26 0c0 8.5-13 23-13 23z" fill="${color}" stroke="#fff" stroke-width="2"/></svg>`;}
 const MEM_KEYS=['tradeId','tradeName','tradeColor','type','contractorId','contractorName','contractorEmails','person','personName','priority','due','desc'];
@@ -1108,11 +1270,12 @@ async function viewDrawing(jobId,dwgId,snagId){
       <select id="dsel">${list.map(x=>`<option value="${x.id}" ${x.id===d.id?'selected':''}>${esc(x.level?x.level+' – ':'')}${esc(x.name)}</option>`).join('')}</select>
       ${isStaff()?`<select id="vf"><option value="">All contractors</option>${conOpts}</select>`:''}
       <span class="spacer"></span>
+      ${isAdmin()?`<a class="btn btn-o btn-sm" href="#/job/${jobId}/areas/${d.id}" title="Drag boxes over rooms and name them — snags dropped inside get that location">▭ <span class="lbl">Areas</span></a>`:''}
       ${isStaff()?`<button class="btn btn-o btn-sm" id="memBtn" title="New snags copy the trade, defect, contractor, person, priority, due date and description from the last snag you worked on">↻ <span class="lbl">Remember last snag</span> <b id="memState"></b></button>
       <button class="btn btn-y" id="addBtn">📍 <span class="lbl">Add snag</span></button>`:''}
     </div>
     <div class="vbody">
-      <div class="viewer" id="viewer"><img class="plan" id="plan" alt=""><div class="pins" id="pins"></div>
+      <div class="viewer" id="viewer"><img class="plan" id="plan" alt=""><div class="areas faint" id="areasV" hidden></div><div class="pins" id="pins"></div>
         <div class="vmsg" id="vmsg">Loading drawing…</div>
         <div class="hint" id="hint">Tap the drawing to drop a pin</div>
         <div class="zoom-ctl"><button class="icon-btn" id="zin">＋</button><button class="icon-btn" id="zout">−</button><button class="icon-btn" id="zfit" title="Fit" style="font-size:14px">⤢</button></div>
@@ -1164,12 +1327,15 @@ async function viewDrawing(jobId,dwgId,snagId){
   function positionPins(){
     const by=Object.fromEntries(snagsOf(jobId).map(x=>[x.id,x]));
     pinsEl.querySelectorAll('.pin').forEach(p=>{const x=by[p.dataset.id];if(!x)return;p.style.left=(tx+x.x*W*s)+'px';p.style.top=(ty+x.y*H*s)+'px';});
+    // the marked-out areas show faintly while placing or moving a pin
+    const av=$('#areasV');av.hidden=!mode;if(mode)areaBoxes(av,areasOf(jobId,d.id),{tx,ty,s,W,H});
   }
   function setMode(m){
     mode=m;viewer.classList.toggle('adding',!!m);
     $('#hint').classList.toggle('show',!!m);
     $('#hint').textContent=m==='move'?'Tap the new position for this pin':'Tap the drawing to drop a pin';
     $('#addBtn')?.classList.toggle('on',m==='add');
+    positionPins();
   }
   if(isStaff()){
     $('#addBtn').onclick=()=>{template=null;setMode(mode==='add'?null:'add');};
@@ -1183,7 +1349,17 @@ async function viewDrawing(jobId,dwgId,snagId){
   function placeAt(px,py){
     const x=(px-tx)/(W*s),y=(py-ty)/(H*s);
     if(x<0||y<0||x>1||y>1){toast('Tap on the drawing itself');return;}
-    if(mode==='move'){const sn=findSnag(jobId,sel);if(sn)patch(sn,{x,y});setMode(null);renderPins();toast('Pin moved');return;}
+    const areas=areasOf(jobId,d.id),area=areaAt(areas,x,y);
+    if(mode==='move'){
+      const sn=findSnag(jobId,sel);
+      if(sn){
+        // follow the pin into its new area, unless the location was typed in by hand
+        const o={x,y},was=areaAt(areas,sn.x,sn.y);
+        if(!sn.location||sn.location===was?.name)o.location=area?.name||'';
+        patch(sn,o);
+      }
+      setMode(null);renderPins();toast('Pin moved'+(area?` — ${area.name}`:''));return;
+    }
     const L=template||(lsGet('pml-prefill',true)?lsGet('pml-last',null):null)||{};
     const cons=j().contractors||[];
     const data={no:Math.max(0,...snagsOf(jobId).map(z=>z.no||0))+1,drawingId:d.id,x,y,status:'open',priority:'Medium',location:'',desc:'',due:'',
@@ -1191,6 +1367,7 @@ async function viewDrawing(jobId,dwgId,snagId){
       createdAt:Date.now(),createdBy:ME.email,createdByName:ME.name||ME.email,updatedAt:Date.now(),updatedBy:ME.email,
       history:[{at:Date.now(),by:ME.name||ME.email,role:ME.role,action:'Raised'}]};
     MEM_KEYS.forEach(k=>{if(L[k]!=null)data[k]=clone(L[k]);});
+    if(area)data.location=area.name;
     // only keep the copied contractor if they're on this job, and refresh their details
     const c=cons.find(z=>z.id===data.contractorId);
     if(!c){Object.assign(data,{contractorId:'',contractorName:'',contractorEmails:[],person:'',personName:''});}
