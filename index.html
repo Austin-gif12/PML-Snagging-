@@ -394,7 +394,8 @@ function floorRank(level){
   return 700;
 }
 const floorLabel=d=>[d?.building,d?.level].filter(Boolean).join(' – ');
-const floorKey=d=>(d?.building||'')+'\u0000'+(d?.level||'');
+// used as a <select> value, so only characters that survive HTML (a NUL separator gets changed by the browser)
+const floorKey=d=>JSON.stringify([d?.building||'',d?.level||'']);
 const dwgCmp=(a,b)=>natCmp(a.building,b.building)||floorRank(a.level)-floorRank(b.level)||natCmp(a.level,b.level)||(a.order||0)-(b.order||0);
 const snagNo=n=>'S-'+String(n||0).padStart(3,'0');
 const statusPill=k=>`<span class="status" style="background:${ST[k]?.c||'#888'}">${esc(ST[k]?.label||k)}</span>`;
