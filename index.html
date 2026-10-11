@@ -1004,19 +1004,35 @@ function viewUsers(){
       </tbody></table></div>
       <p class="meta" style="margin-top:10px">Turning access off stops someone logging in to the app straight away. Contractors see snags when their email is listed on a job's contractor.</p>
       <div class="card" style="padding:14px;margin-top:20px"><b>Move data across from Firebase</b>
-        <p class="meta" style="margin:6px 0 10px">One-off: choose the <code>firebase-export.json</code> file made by <code>migrate/export-firestore.mjs</code>. Jobs, drawings, snags, photos, users and settings are copied in. Only run it once: running it again puts the Firebase copies back over any changes made since.</p>
-        <button class="btn btn-o btn-sm" id="impFb">Choose export file…</button> <span class="meta" id="impMsg"></span></div></div>`;
-    $('#impFb').onclick=async()=>{
+        <p class="meta" style="margin:6px 0 10px">One-off: copies jobs, drawings, snags, photos, users and settings from the old Firebase app. Use <b>Copy straight from Firebase</b> with your old Firebase email and password, or choose a <code>firebase-export.json</code> made by <code>migrate/export-firestore.mjs</code>. Only run it once: running it again puts the Firebase copies back over any changes made since.</p>
+        <button class="btn btn-y btn-sm" id="impLive">Copy straight from Firebase…</button> <button class="btn btn-o btn-sm" id="impFb">Choose export file…</button> <span class="meta" id="impMsg"></span></div></div>`;
+    const runImport=async(getDocsFn)=>{
       if(!navigator.onLine){toast('You need signal to import');return;}
-      const [f]=await pickFiles('.json,application/json');if(!f)return;
-      let docs;try{docs=JSON.parse(await f.text()).docs;}catch{toast('That isn\'t a Firebase export file');return;}
-      if(!Array.isArray(docs)){toast('That isn\'t a Firebase export file');return;}
-      if(!await modal('Import from Firebase',`<p>Copy <b>${docs.length}</b> items into PML Snagging?</p><p class="meta">Keep the app open until it finishes.</p>`,{ok:'Import'}))return;
-      const msg=$('#impMsg'),btn=$('#impFb');btn.disabled=true;
-      try{const n=await importDocs(docs,(d,t)=>{if(msg.isConnected)msg.textContent=`Copied ${d} of ${t}…`;});toast(`Imported ${n} items`,4000);if(msg.isConnected)msg.textContent=`Done: ${n} items copied.`;}
-      catch(e){toast('Import stopped: '+(e.message||e.code),6000);if(msg.isConnected)msg.textContent='Stopped: '+(e.message||e.code);}
-      finally{btn.disabled=false;}
+      const btns=[$('#impFb'),$('#impLive')];btns.forEach(b=>b.disabled=true);
+      const say=t=>{const m=$('#impMsg');if(m)m.textContent=t;};
+      try{
+        const docs=await getDocsFn(say);if(!docs)return;
+        if(!await modal('Import from Firebase',`<p>Copy <b>${docs.length}</b> items into PML Snagging?</p><p class="meta">Keep the app open until it finishes.</p>`,{ok:'Import'})){say('');return;}
+        const n=await importDocs(docs,(d,t)=>say(`Copied ${d} of ${t}…`));
+        toast(`Imported ${n} items`,4000);say(`Done: ${n} items copied.`);
+      }catch(e){toast('Import stopped: '+(e.message||e.code),7000);say('Stopped: '+(e.message||e.code));}
+      finally{btns.forEach(b=>{if(b)b.disabled=false;});}
     };
+    $('#impFb').onclick=()=>runImport(async()=>{
+      const [f]=await pickFiles('.json,application/json');if(!f)return null;
+      let docs;try{docs=JSON.parse(await f.text()).docs;}catch{}
+      if(!Array.isArray(docs))throw new Error('That isn\'t a Firebase export file');
+      return docs;
+    });
+    $('#impLive').onclick=()=>runImport(async say=>{
+      const v=await modal('Copy straight from Firebase',`<p class="meta">Sign in with the email and password you used on the <b>old</b> Firebase snagging app. They're only sent to Firebase.</p>
+        <div class="f"><label>Old app email</label><input name="email" type="email" autocomplete="off" value="${esc(ME.email)}"></div>
+        <div class="f"><label>Old app password</label><input name="password" type="password" autocomplete="off"></div>`,{ok:'Read Firebase'});
+      if(!v||!v.email||!v.password)return null;
+      say('Reading Firebase…');
+      const {readFirebase}=await import('./migrate/firebase-import.js');
+      return readFirebase(low(v.email),v.password,n=>say(`Read ${n} items from Firebase…`));
+    });
     document.querySelectorAll('tr[data-e]').forEach(tr=>{
       const e=tr.dataset.e,ref=doc(db,'users',e);
       tr.querySelector('[data-k=name]').onchange=ev=>w(updateDoc(ref,{name:ev.target.value}));

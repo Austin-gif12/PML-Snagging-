@@ -19,8 +19,10 @@ let client = null;
 async function authkit() {
   if (!client) {
     const { createClient } = await import(AUTHKIT_JS);
+    const clientId = WORKOS_CLIENT_ID || (await (await fetch(API_URL + "/config")).json()).workosClientId;
+    if (!clientId) throw new Error("WORKOS_CLIENT_ID isn't set in Vercel");
     // devMode keeps the AuthKit session on this device; production mode needs a paid custom domain.
-    client = await createClient(WORKOS_CLIENT_ID, { redirectUri: APP_URL, devMode: true });
+    client = await createClient(clientId, { redirectUri: APP_URL, devMode: true });
   }
   return client;
 }
@@ -65,7 +67,6 @@ export async function workosSignOut() {
 }
 
 async function exchange(accessToken) {
-  if (!API_URL || API_URL.includes("YOUR-")) throw new Error("API_URL isn't set in config.js");
   let r;
   try {
     r = await fetch(API_URL.replace(/\/+$/, "") + "/session", {

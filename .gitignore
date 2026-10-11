@@ -2,7 +2,7 @@
 firebase-key.json
 *service-account*.json
 firebase-export.json
-.dev.vars
+.env*
 # Build tools
 node_modules/
-.wrangler/
+.vercel/
