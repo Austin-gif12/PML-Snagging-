@@ -281,6 +281,10 @@ body.show-report #report{display:block}
 .r-head img{height:30px}
 .r-head .t{font:800 17pt var(--ffh);letter-spacing:-.3px}
 .r-head .s{font-size:9pt;color:#555}
+.r-where{background:var(--black);color:#fff;border-left:8px solid var(--yellow);padding:10px 14px;margin-bottom:10px}
+.r-where .fl{font:800 16pt var(--ffh);letter-spacing:-.2px;line-height:1.2}
+.r-where .lc{font:800 20pt var(--ffh);color:var(--yellow);letter-spacing:-.3px;line-height:1.2;margin-top:2px}
+.r-where .fl+.lc{margin-top:4px}
 .r-head .d{margin-left:auto;text-align:right;font-size:8.5pt;color:#555}
 .r-info{display:grid;grid-template-columns:1fr 1fr;border:1px solid #ccc;margin-bottom:10px}
 .r-info div{padding:5px 8px;border-bottom:1px solid #e3e3e3;font-size:9pt}
@@ -295,8 +299,8 @@ body.show-report #report{display:block}
 .r-tbl th{background:#f1ede5;text-align:left;padding:4px 6px;border:1px solid #d8d2c6;font-size:7.5pt;text-transform:uppercase;letter-spacing:.5px}
 .r-tbl td{padding:4px 6px;border:1px solid #e0dbd1;vertical-align:top}
 .r-tbl tr{break-inside:avoid}
-.r-tbl tr.r-sec td{background:#0E0602;color:#FCBF2A;font-weight:800;font-family:var(--ffh);font-size:8.5pt;padding:5px 6px;break-after:avoid}
-.r-h3{font:800 10pt var(--ffh);margin:14px 0 6px;padding:3px 8px;border-left:5px solid var(--yellow);background:#f1ede5;break-after:avoid}
+.r-tbl tr.r-sec td{background:#0E0602;color:#FCBF2A;font-weight:800;font-family:var(--ffh);font-size:11pt;padding:7px 8px;break-after:avoid}
+.r-h3{font:800 14pt var(--ffh);margin:16px 0 8px;padding:6px 10px;border-left:5px solid var(--yellow);background:#f1ede5;break-after:avoid}
 .r-ov{break-inside:avoid;margin-bottom:10px}
 .r-ov img{width:100%;border:1px solid #ccc;display:block}
 .r-ov .cap{font-size:8pt;color:#555;margin-top:3px}
@@ -1784,13 +1788,14 @@ async function buildReport(j,list,{con,level='',location='',photos=true,overview
     return{name:k?.company||l[0].contractorName||'Not assigned',contact:k?[k.phone,k.email].filter(Boolean).join(' · '):'',c:countBy(l),n:l.length};}).sort((a,b)=>a.name.localeCompare(b.name));
   let html=`<div class="rbar"><button class="btn btn-ghost btn-sm" id="rback">← Back</button><b style="font-family:var(--ffh)">${esc(title)}</b><span class="spacer"></span><button class="btn btn-y" id="rprint">🖨 Print / Save as PDF</button></div>
   <div class="sheet">
-    <div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">${esc(title)}</div><div class="s">${esc(where?where+' · '+conName:conName)}</div></div>
+    <div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">${esc(title)}</div><div class="s">${esc(conName)}</div></div>
       <div class="d">Report date<br><b>${fmtDate(Date.now())}</b></div></div>
+    ${where?`<div class="r-where">${level?`<div class="fl">${esc(level)}</div>`:''}${location?`<div class="lc">${esc(location)}</div>`:''}</div>`:''}
     <div class="r-info">
       <div><b>Job</b>${esc(j.name)}</div><div><b>Job ref</b>${esc(j.ref||'—')}</div>
       <div><b>Site address</b>${esc(j.address||'—')}</div><div><b>Client / main contractor</b>${esc(j.client||'—')}</div>
       <div><b>Contractor</b>${esc(conName)}</div><div><b>Contact</b>${esc(contact||'—')}</div>
-      ${where?`<div><b>Floor / level</b>${esc(level||'All floors')}</div><div><b>Location</b>${esc(location||'All locations')}</div>`:''}
+      ${where?`<div><b>Building / floor</b>${esc(level||'All floors')}</div><div><b>Location</b>${esc(location||'All locations')}</div>`:''}
       <div><b>Snags included</b>${esc(scope||'As listed')}</div><div><b>Total in report</b>${list.length}</div>
     </div>
     <div class="r-sum">${STATUSES.map(s=>`<div style="border-top-color:${s.c}"><b>${c[s.k]}</b><span>${s.label}</span></div>`).join('')}</div>
