@@ -295,6 +295,8 @@ body.show-report #report{display:block}
 .r-tbl th{background:#f1ede5;text-align:left;padding:4px 6px;border:1px solid #d8d2c6;font-size:7.5pt;text-transform:uppercase;letter-spacing:.5px}
 .r-tbl td{padding:4px 6px;border:1px solid #e0dbd1;vertical-align:top}
 .r-tbl tr{break-inside:avoid}
+.r-tbl tr.r-sec td{background:#0E0602;color:#FCBF2A;font-weight:800;font-family:var(--ffh);font-size:8.5pt;padding:5px 6px;break-after:avoid}
+.r-h3{font:800 10pt var(--ffh);margin:14px 0 6px;padding:3px 8px;border-left:5px solid var(--yellow);background:#f1ede5;break-after:avoid}
 .r-ov{break-inside:avoid;margin-bottom:10px}
 .r-ov img{width:100%;border:1px solid #ccc;display:block}
 .r-ov .cap{font-size:8pt;color:#555;margin-top:3px}
@@ -351,7 +353,7 @@ body.show-report #report{display:block}
 
 <script type="module">
 import {
-  auth, db, OWNER_EMAILS, onAuthStateChanged, signOut, pendingWrites, sendInvite, importDocs, setSessionRefresher, setRefusedHandler,
+  auth, db, OWNER_EMAILS, onAuthStateChanged, signOut, pendingWrites, sendInvite, sendReminder, importDocs, setSessionRefresher, setRefusedHandler,
   collection, doc, query, where, onSnapshot, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch
 } from './data.js';
 import {
@@ -375,6 +377,25 @@ const ROLES={admin:'Admin',manager:'Site manager',contractor:'Contractor'};
 const fmtDate=v=>{if(!v)return'—';const d=new Date(v);return isNaN(d)?String(v):d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
 const fmtWhen=v=>{const d=new Date(v);return isNaN(d)?'':d.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});};
 const today=()=>new Date().toISOString().slice(0,10);
+// Building-by-building, then floor order (basement → lower ground → ground → 1st → … → roof), for reports.
+const natCmp=(a,b)=>String(a||'').localeCompare(String(b||''),undefined,{numeric:true,sensitivity:'base'});
+const WORDS={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12};
+function floorRank(level){
+  const t=low(level);if(!t)return 900;
+  if(/roof/.test(t))return 800;
+  const bm=t.match(/(?:basement|\bb)\s*-?\s*0*(\d+)/);if(bm)return -10-Number(bm[1]);
+  if(/basement|cellar/.test(t))return -10;
+  if(/lower\s*ground|\blg\b|\blgf\b/.test(t))return -1;
+  if(/upper\s*ground|\bug\b|\bugf\b/.test(t))return .5;
+  if(/ground|\bgf\b|^g$|^(level\s*)?0+$/.test(t))return 0;
+  if(/mezz/.test(t))return .7;
+  const n=t.match(/-?\d+/);if(n)return Number(n[0]);
+  for(const [w,v] of Object.entries(WORDS))if(t.includes(w))return v;
+  return 700;
+}
+const floorLabel=d=>[d?.building,d?.level].filter(Boolean).join(' – ');
+const floorKey=d=>(d?.building||'')+'\u0000'+(d?.level||'');
+const dwgCmp=(a,b)=>natCmp(a.building,b.building)||floorRank(a.level)-floorRank(b.level)||natCmp(a.level,b.level)||(a.order||0)-(b.order||0);
 const snagNo=n=>'S-'+String(n||0).padStart(3,'0');
 const statusPill=k=>`<span class="status" style="background:${ST[k]?.c||'#888'}">${esc(ST[k]?.label||k)}</span>`;
 const emailsOf=c=>[...new Set([c?.email,...(c?.people||[]).map(p=>p.email)].map(low).filter(Boolean))];
@@ -764,11 +785,11 @@ function tabDrawings(j){
   for(const d of list){
     const n=snagsOf(j.id).filter(s=>s.drawingId===d.id),open=n.filter(s=>s.status!=='closed').length;
     const el=document.createElement('div');el.className='card dwg-card';
-    el.innerHTML=`<div class="thumb" style="${d.thumb?`background-image:url('${d.thumb}')`:''}"><span class="lvl">${esc(d.level||'—')}</span></div><div class="body"><b>${esc(d.name)}</b><span class="chip">${open} open / ${n.length}</span>
+    el.innerHTML=`<div class="thumb" style="${d.thumb?`background-image:url('${d.thumb}')`:''}"><span class="lvl">${esc([d.building,d.level].filter(Boolean).join(' · ')||'—')}</span></div><div class="body"><b>${esc(d.name)}</b><span class="chip">${open} open / ${n.length}</span>
       ${isAdmin()?'<button class="x" title="Mark rooms / areas" data-a>▭</button>':''}<button class="x" title="Edit" data-e>✎</button><button class="x" title="Delete" data-d>✕</button></div>`;
     el.onclick=e=>{if(e.target.closest('[data-a],[data-e],[data-d]'))return;location.hash=`#/job/${j.id}/drawing/${d.id}`;};
     if(isAdmin())el.querySelector('[data-a]').onclick=()=>location.hash=`#/job/${j.id}/areas/${d.id}`;
-    el.querySelector('[data-e]').onclick=async()=>{const v=await drawingForm(d.name,d.level);if(v)w(updateDoc(doc(db,'jobs',j.id,'drawings',d.id),{name:v.name||d.name,level:v.level}));};
+    el.querySelector('[data-e]').onclick=async()=>{const v=await drawingForm(d.name,d.level,d.building,j.id);if(v)w(updateDoc(doc(db,'jobs',j.id,'drawings',d.id),{name:v.name||d.name,level:v.level,building:v.building.trim()}));};
     el.querySelector('[data-d]').onclick=async()=>{
       if(!await confirmBox('Delete drawing',`Delete <b>${esc(d.name)}</b>${n.length?` and its ${n.length} snag${n.length==1?'':'s'}`:''}?`))return;
       const b=writeBatch(db);
@@ -780,8 +801,10 @@ function tabDrawings(j){
     g.append(el);
   }
 }
-const drawingForm=(name='',level='')=>modal('Drawing details',`
+const drawingForm=(name='',level='',building='',jid='')=>modal('Drawing details',`
   <div class="f"><label>Drawing name</label><input name="name" value="${esc(name)}" placeholder="e.g. GA Plan Level 02"></div>
+  <div class="f"><label>Building / block <span class="meta" style="text-transform:none;letter-spacing:0">(if the job has more than one)</span></label><input name="building" value="${esc(building)}" list="bldgs" autocomplete="off" placeholder="e.g. 1 Portugal Street, Block A">
+    <datalist id="bldgs">${[...new Set((DRAW[jid]||[]).map(d=>d.building).filter(Boolean))].map(b=>`<option value="${esc(b)}">`).join('')}</datalist></div>
   <div class="f"><label>Floor / level</label><input name="level" value="${esc(level)}" placeholder="e.g. Level 02, Ground floor, Roof"></div>`);
 async function loadPdfJs(){
   if(window.pdfjsLib)return window.pdfjsLib;
@@ -792,7 +815,7 @@ async function loadPdfJs(){
 async function uploadDrawing(j){
   const [f]=await pickFiles('image/*,application/pdf');if(!f)return;
   const base=f.name.replace(/\.[^.]+$/,'');
-  const v=await drawingForm(base,'');if(!v)return;
+  const v=await drawingForm(base,'','',j.id);if(!v)return;
   toast('Processing drawing…');
   try{
     const pages=[];
@@ -811,20 +834,20 @@ async function uploadDrawing(j){
     const existing=(DRAW[j.id]||[]).length,ids=[];
     for(const [i,src] of pages.entries()){
       const full=await scaleImage(src,3600,.8),thumb=await scaleImage(src,480,.7);
-      ids.push(saveDrawing(j.id,{name:(v.name||base)+(pages.length>1?` – p${i+1}`:''),level:v.level,url:full.url,w:full.w,h:full.h,thumb:thumb.url,order:Date.now()+existing+i}));
+      ids.push(saveDrawing(j.id,{name:(v.name||base)+(pages.length>1?` – p${i+1}`:''),level:v.level,building:v.building.trim(),url:full.url,w:full.w,h:full.h,thumb:thumb.url,order:Date.now()+existing+i}));
     }
     // straight on to marking out the rooms/areas, so new snags can pick up their location
     if(isAdmin()){location.hash=`#/job/${j.id}/areas/${ids[0]}`;toast((pages.length>1?`${pages.length} drawings added`:'Drawing added')+' — now drag over each room and name it',4000);}
     else toast(pages.length>1?`${pages.length} drawings added`:'Drawing added');
   }catch(e){console.error(e);toast(navigator.onLine?'Could not read that file':'PDFs need signal the first time — or upload a JPG/PNG');}
 }
-function saveDrawing(jid,{name,level,url,w:W,h:H,thumb,order}){
+function saveDrawing(jid,{name,level,building='',url,w:W,h:H,thumb,order}){
   // The drawing is uploaded in ~900KB pieces so each upload stays a sensible size on site signal.
   const ref=doc(collection(db,'jobs',jid,'drawings'));
   const size=900000,n=Math.ceil(url.length/size);
   let b=writeBatch(db),cnt=0;
   for(let i=0;i<n;i++){b.set(doc(db,'jobs',jid,'drawings',ref.id,'chunks',String(i)),{i,d:url.slice(i*size,(i+1)*size)});if(++cnt===5){w(b.commit());b=writeBatch(db);cnt=0;}}
-  b.set(ref,{name,level,w:W,h:H,thumb,chunks:n,v:1,order,createdAt:Date.now(),createdBy:ME.email});
+  b.set(ref,{name,level,building,w:W,h:H,thumb,chunks:n,v:1,order,createdAt:Date.now(),createdBy:ME.email});
   w(b.commit());
   dwgMem[`dwg:${ref.id}:1`]=url;LC.set(`dwg:${ref.id}:1`,url).catch(()=>{});
   return ref.id;
@@ -905,6 +928,16 @@ async function emailInvite(email){
   }catch(e){toast(`Couldn't email the invite (${e.message}). They can still tap "Create your login" in the app using ${email}.`,7000);}
 }
 
+// Email reminder setting for a contractor on a job (sent by the API each morning, see lib/reminders.js)
+function reminderRow(k){
+  const r=k.reminders||{},freq=r.freq||'off',day=Number.isInteger(r.day)?r.day:1,to=emailsOf(k);
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  return`<div class="f" style="margin-bottom:10px"><label>📧 Email reminders</label>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><select data-rf style="width:auto;flex:1;min-width:130px">${[['off','Off'],['daily','Daily'],['2days','Every 2 days'],['weekly','Weekly']].map(([v,t])=>`<option value="${v}" ${v===freq?'selected':''}>${t}</option>`).join('')}</select>
+      <select data-rd style="width:auto;flex:1;min-width:120px" ${freq==='weekly'?'':'hidden'}>${days.map((d,i)=>`<option value="${i}" ${i===day?'selected':''}>on ${d}s</option>`).join('')}</select>
+      <button class="btn btn-o btn-sm" data-rnow title="Email their outstanding snags on this job now">Send now</button></div>
+    <div class="meta" style="margin-top:4px">${to.length?`${freq==='off'?`Off. When switched on, reminders go to ${esc(to.join(', '))}`:`Sent early each morning to ${esc(to.join(', '))}`} with their outstanding snags on this job. Nothing is sent when they have none.`:'<span style="color:var(--amber)">Add a company or person email to send reminders.</span>'}</div></div>`;
+}
 function contractorEditor(host,getList,onChange,{forJob}={}){
   const list=getList();
   host.innerHTML='';
@@ -916,10 +949,23 @@ function contractorEditor(host,getList,onChange,{forJob}={}){
       <div class="f" style="margin-bottom:10px"><label>Trades</label><div class="tradechecks">${LIB.trades.map(t=>`<label class="${(k.tradeIds||[]).includes(t.id)?'on':''}"><input type="checkbox" value="${t.id}" ${(k.tradeIds||[]).includes(t.id)?'checked':''}><span style="color:${t.color}">●</span>${esc(t.name)}</label>`).join('')||'<span class="meta">Add trades in the library first</span>'}</div></div>
       <div class="f2" style="margin-bottom:6px"><div class="f"><label>Office phone</label><input data-k="phone" value="${esc(k.phone)}"></div><div class="f"><label>Company email</label><input data-k="email" type="email" value="${esc(k.email)}" placeholder="snags@company.com"></div></div>
       ${forJob&&k.email?`<div class="row" style="margin-bottom:10px">${accessBadge(k.email,k.company)}</div>`:''}
+      ${forJob?reminderRow(k):''}
       <div class="f"><label>People responsible</label></div><div class="types people"></div>
       <div class="row" style="margin-top:8px"><button class="btn btn-o btn-sm" data-a>＋ Add person</button><span class="spacer"></span>
       ${forJob?`<button class="btn btn-o btn-sm" data-lib>${inLib?'↻ Update in main list':'★ Save to main list'}</button>`:''}</div>`;
     c.querySelector('[data-n]').oninput=e=>{k.company=e.target.value;onChange();};
+    if(forJob){
+      const rf=c.querySelector('[data-rf]'),rd=c.querySelector('[data-rd]');
+      rf.onchange=rd.onchange=()=>{k.reminders={freq:rf.value,day:Number(rd.value)};onChange(true);};
+      c.querySelector('[data-rnow]').onclick=async e=>{
+        if(!navigator.onLine){toast('You need signal to send a reminder');return;}
+        const btn=e.currentTarget;btn.disabled=true;
+        try{const r=await sendReminder(forJob,k.id);
+          toast(r.status==='sent'?`Reminder sent to ${r.to.join(', ')} (${r.count} snag${r.count==1?'':'s'})`:r.status==='nothing-outstanding'?`${k.company||'This contractor'} has nothing outstanding — no email sent`:'Add an email address first',5000);}
+        catch(err){toast('Could not send: '+err.message,6000);}
+        finally{btn.disabled=false;}
+      };
+    }
     c.querySelectorAll('[data-k]').forEach(i=>i.oninput=()=>{k[i.dataset.k]=i.dataset.k==='email'?low(i.value):i.value;onChange();});
     c.querySelectorAll('.tradechecks input').forEach(i=>i.onchange=()=>{k.tradeIds=i.checked?[...(k.tradeIds||[]),i.value]:(k.tradeIds||[]).filter(x=>x!==i.value);i.parentElement.classList.toggle('on',i.checked);onChange();});
     c.querySelector('[data-d]').onclick=async()=>{if(await confirmBox('Remove contractor',`Remove <b>${esc(k.company)}</b>${forJob?' from this job? Their existing snags keep their name, but they will no longer see them.':' from the main list? Jobs that already use them are not affected.'}`,'Remove')){const l=getList();l.splice(l.indexOf(k),1);onChange(true);}};
@@ -949,8 +995,8 @@ function tabContractors(j){
   b.innerHTML=`<div class="note-bar">These are the contractors for <b>this job only</b>. Contractors see only snags assigned to them — give each person an email and tap <b>Give app access</b> so they can log in.</div>
     <div class="row" style="margin-bottom:14px"><button class="btn btn-y" id="addLib">＋ Add from main list</button><button class="btn btn-o" id="addNew">＋ New contractor for this job</button></div>
     <div class="lib-grid" id="cg"></div>`;
-  const change=redraw=>{saveJobContractors(work);if(redraw)contractorEditor($('#cg'),()=>work.contractors,change,{forJob:true});};
-  contractorEditor($('#cg'),()=>work.contractors,change,{forJob:true});
+  const change=redraw=>{saveJobContractors(work);if(redraw)contractorEditor($('#cg'),()=>work.contractors,change,{forJob:j.id});};
+  contractorEditor($('#cg'),()=>work.contractors,change,{forJob:j.id});
   $('#addNew').onclick=()=>{work.contractors.push({id:uid(),company:'',tradeIds:[],phone:'',email:'',people:[]});change(true);setTimeout(()=>{const i=[...document.querySelectorAll('#cg input[data-n]')].pop();i?.focus();},30);};
   $('#addLib').onclick=async()=>{
     const avail=LIB.contractors.filter(c=>!work.contractors.some(x=>x.id===c.id));
@@ -1623,31 +1669,33 @@ function flushDebounce(sn){for(const k of Object.keys(debT))if(k.startsWith(sn.i
 addEventListener('pagehide',()=>{for(const k of Object.keys(debT)){clearTimeout(debT[k].t);debT[k].run();delete debT[k];}});
 
 /* ═════════════ reports ═════════════ */
-const RF={contractor:'',level:'',location:'',status:'notclosed',photos:true,overview:true};
+const RF={contractor:'',level:'',location:'',status:'notclosed',photos:true,overview:true,sections:true};
 const locKey=s=>String(s||'').trim().toLowerCase();
 function tabReports(j){
   const b=$('#tabBody');
   const cons=j.contractors||[];
   const dwgs=DRAW[j.id]||[],dmap=Object.fromEntries(dwgs.map(d=>[d.id,d]));
-  const lvlOf=s=>dmap[s.drawingId]?.level||'';
+  const lvlOf=s=>floorKey(dmap[s.drawingId]);
   const all=snagsOf(j.id);
   const rows=cons.map(c=>{const l=all.filter(s=>s.contractorId===c.id);return{c,all:l.length,open:l.filter(s=>s.status==='open'||s.status==='progress').length,ready:l.filter(s=>s.status==='ready').length};}).filter(x=>x.all);
   // one row per floor + location, since copied areas share names across floors
   const groups=new Map();
   for(const s of all){
     const k=lvlOf(s)+'\u0000'+locKey(s.location);
-    if(!groups.has(k))groups.set(k,{level:lvlOf(s),location:String(s.location||'').trim(),list:[]});
+    if(!groups.has(k))groups.set(k,{level:lvlOf(s),d:dmap[s.drawingId]||{},location:String(s.location||'').trim(),list:[]});
     groups.get(k).list.push(s);
   }
-  const locRows=[...groups.values()].sort((a,b)=>(a.level||'~').localeCompare(b.level||'~',undefined,{numeric:true})||(a.location||'~').localeCompare(b.location||'~',undefined,{numeric:true}));
-  const levels=[...new Set(dwgs.map(d=>d.level).filter(Boolean))];
+  const locRows=[...groups.values()].sort((a,b)=>dwgCmp(a.d,b.d)||natCmp(a.location||'~',b.location||'~'));
+  // one option per building + floor, in building then floor order
+  const floors=[];[...dwgs].sort(dwgCmp).forEach(d=>{if((d.building||d.level)&&!floors.some(f=>f.k===floorKey(d)))floors.push({k:floorKey(d),t:floorLabel(d)});});
   b.innerHTML=`<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
     <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:12px">
       <h2>Generate a report</h2>
       <div class="f"><label>Contractor</label><select id="rc"><option value="">All contractors (full job report)</option>${cons.map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('')}</select></div>
-      <div class="f2"><div class="f"><label>Floor / level</label><select id="rl"><option value="">All floors</option>${levels.map(l=>`<option>${esc(l)}</option>`).join('')}</select></div>
+      <div class="f2"><div class="f"><label>Building / floor</label><select id="rl"><option value="">All floors</option>${floors.map(f=>`<option value="${esc(f.k)}">${esc(f.t)}</option>`).join('')}</select></div>
         <div class="f"><label>Location / area</label><select id="rloc"></select></div></div>
       <div class="f"><label>Which snags</label><select id="rs"><option value="notclosed">Outstanding (not signed off)</option><option value="">All snags</option>${STATUSES.map(s=>`<option value="${s.k}">${s.label} only</option>`).join('')}</select></div>
+      <label class="row" style="font-size:13px"><input type="checkbox" id="rsec"> Split into sections, building by building and floor by floor</label>
       <label class="row" style="font-size:13px"><input type="checkbox" id="ro"> Include drawing overview (every pin on each level)</label>
       <label class="row" style="font-size:13px"><input type="checkbox" id="rp"> Include photos</label>
       <button class="btn btn-y" id="gen">📄 Generate report</button>
@@ -1657,15 +1705,15 @@ function tabReports(j){
       ${rows.map(x=>`<tr><td><b>${esc(x.c.company)}</b></td><td>${x.open}</td><td>${x.ready}</td><td>${x.all}</td><td><button class="btn btn-o btn-sm" data-c="${x.c.id}">Report</button></td></tr>`).join('')}</tbody></table>`:'<p class="muted">No snags assigned yet.</p>'}
     </div>
     <div class="card" style="padding:16px;grid-column:1/-1"><h2 style="margin-bottom:10px">By location</h2>
-      ${locRows.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Floor / level</th><th>Location</th><th>Contractors</th><th>Open</th><th>To sign off</th><th>Total</th><th></th></tr></thead><tbody>
+      ${locRows.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Building / floor</th><th>Location</th><th>Contractors</th><th>Open</th><th>To sign off</th><th>Total</th><th></th></tr></thead><tbody>
       ${locRows.map((x,i)=>{const names=[...new Set(x.list.map(s=>s.contractorName).filter(Boolean))];
-        return`<tr><td>${esc(x.level||'—')}</td><td><b>${esc(x.location||'No location set')}</b></td><td>${names.length?esc(names.join(', ')):'<span class="muted">Not assigned</span>'}</td>
+        return`<tr><td>${esc(floorLabel(x.d)||'—')}</td><td><b>${esc(x.location||'No location set')}</b></td><td>${names.length?esc(names.join(', ')):'<span class="muted">Not assigned</span>'}</td>
         <td>${x.list.filter(s=>s.status==='open'||s.status==='progress').length}</td><td>${x.list.filter(s=>s.status==='ready').length}</td><td>${x.list.length}</td>
         <td>${x.location?`<button class="btn btn-o btn-sm" data-l="${i}">Report</button>`:''}</td></tr>`;}).join('')}</tbody></table></div>`:'<p class="muted">No snags yet.</p>'}
     </div></div>`;
   const fillLoc=()=>{
     // locations on the chosen floor: from snags and from the areas marked on its drawings
-    const onLvl=d=>!$('#rl').value||d.level===$('#rl').value;
+    const onLvl=d=>!$('#rl').value||floorKey(d)===$('#rl').value;
     const names=new Map();
     all.filter(s=>dmap[s.drawingId]&&onLvl(dmap[s.drawingId])).forEach(s=>{const n=String(s.location||'').trim();if(n&&!names.has(locKey(n)))names.set(locKey(n),n);});
     dwgs.filter(onLvl).forEach(d=>(d.areas||[]).forEach(a=>{if(!names.has(locKey(a.name)))names.set(locKey(a.name),a.name);}));
@@ -1676,13 +1724,13 @@ function tabReports(j){
   $('#rc').value=RF.contractor;if($('#rc').value!==RF.contractor)RF.contractor='';
   $('#rl').value=RF.level;if($('#rl').value!==RF.level)RF.level='';
   fillLoc();$('#rl').onchange=fillLoc;
-  $('#rs').value=RF.status;$('#ro').checked=RF.overview;$('#rp').checked=RF.photos;
-  const read=()=>{RF.contractor=$('#rc').value;RF.level=$('#rl').value;RF.location=$('#rloc').value;RF.status=$('#rs').value;RF.overview=$('#ro').checked;RF.photos=$('#rp').checked;};
+  $('#rs').value=RF.status;$('#ro').checked=RF.overview;$('#rp').checked=RF.photos;$('#rsec').checked=RF.sections;
+  const read=()=>{RF.contractor=$('#rc').value;RF.level=$('#rl').value;RF.location=$('#rloc').value;RF.status=$('#rs').value;RF.overview=$('#ro').checked;RF.photos=$('#rp').checked;RF.sections=$('#rsec').checked;};
   const go=()=>{
     const con=cons.find(c=>c.id===RF.contractor);
     const list=all.filter(s=>(!con||s.contractorId===con.id)&&(!RF.level||lvlOf(s)===RF.level)&&(!RF.location||locKey(s.location)===locKey(RF.location))
       &&(!RF.status||(RF.status==='notclosed'?s.status!=='closed':s.status===RF.status))).sort((a,b)=>a.no-b.no);
-    buildReport(j,list,{con,level:RF.level,location:RF.location,photos:RF.photos,overview:RF.overview,scope:RF.status==='notclosed'?'Outstanding (not signed off)':RF.status?ST[RF.status].label+' only':'All'});
+    buildReport(j,list,{con,level:floorLabel(dwgs.find(d=>floorKey(d)===RF.level)),location:RF.location,photos:RF.photos,overview:RF.overview,sections:RF.sections,scope:RF.status==='notclosed'?'Outstanding (not signed off)':RF.status?ST[RF.status].label+' only':'All'});
   };
   $('#gen').onclick=()=>{read();go();};
   b.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>{read();Object.assign(RF,{contractor:x.dataset.c,level:'',location:''});go();});
@@ -1713,12 +1761,17 @@ function overview(im,list){
   list.forEach(sn=>drawPinOnCanvas(x,sn.x*cw,sn.y*ch,String(sn.no),ST[sn.status].c,1.1));
   return c.toDataURL('image/jpeg',.85);
 }
-async function buildReport(j,list,{con,level='',location='',photos=true,overview:ov=true,scope='',title='Snagging Report'}={}){
+async function buildReport(j,list,{con,level='',location='',photos=true,overview:ov=true,sections=true,scope='',title='Snagging Report'}={}){
   if(!list.length){toast('No snags match those options');return;}
   ensureDrawings(j.id);
   if(!DRAW[j.id]){toast('Drawings still loading — try again in a moment');return;}
   toast('Building report…');
   const dmap=Object.fromEntries(DRAW[j.id].map(d=>[d.id,d]));
+  // building by building, floor by floor, then location, then snag number
+  list=[...list].sort((a,b)=>dwgCmp(dmap[a.drawingId]||{},dmap[b.drawingId]||{})||natCmp(low(a.location)||'~',low(b.location)||'~')||a.no-b.no);
+  const secOf=s=>floorLabel(dmap[s.drawingId])||'Floor not set';
+  const multiSec=sections&&new Set(list.map(secOf)).size>1;
+  const hasBldg=list.some(s=>dmap[s.drawingId]?.building);
   const ims={};
   for(const id of new Set(list.map(s=>s.drawingId))){const d=dmap[id];if(!d)continue;try{ims[id]=await loadEl(await loadDrawing(j.id,d));}catch{}}
   const c=countBy(list);
@@ -1744,23 +1797,24 @@ async function buildReport(j,list,{con,level='',location='',photos=true,overview
     <table class="r-tbl"><thead><tr><th>Contractor</th><th>Contact</th>${STATUSES.map(s=>`<th>${s.label}</th>`).join('')}<th>Total</th></tr></thead><tbody>
     ${byCon.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.contact||'—')}</td>${STATUSES.map(s=>`<td>${x.c[s.k]||0}</td>`).join('')}<td><b>${x.n}</b></td></tr>`).join('')}</tbody></table>`:''}
     <div class="r-h2">Snag summary</div>
-    <table class="r-tbl"><thead><tr><th>No.</th><th>Defect</th>${con?'':'<th>Contractor</th>'}<th>Level</th><th>Location</th><th>Responsible</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead><tbody>
-    ${list.map(s=>`<tr><td><b>${snagNo(s.no)}</b></td><td>${esc(s.type||'—')}</td>${con?'':`<td>${esc(s.contractorName||'—')}</td>`}<td>${esc(dmap[s.drawingId]?.level||'')}</td><td>${esc(s.location||'')}</td><td>${esc(s.personName||'—')}</td><td>${esc(s.priority||'')}</td><td>${fmtDate(s.due)}</td><td>${esc(ST[s.status]?.label||s.status)}</td></tr>`).join('')}
+    <table class="r-tbl"><thead><tr><th>No.</th><th>Defect</th>${con?'':'<th>Contractor</th>'}${hasBldg?'<th>Building</th>':''}<th>Level</th><th>Location</th><th>Responsible</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead><tbody>
+    ${list.map((s,i)=>`${multiSec&&(i===0||secOf(s)!==secOf(list[i-1]))?`<tr class="r-sec"><td colspan="${8+(con?0:1)+(hasBldg?1:0)}">${esc(secOf(s))} · ${list.filter(x=>secOf(x)===secOf(s)).length} snag${list.filter(x=>secOf(x)===secOf(s)).length==1?'':'s'}</td></tr>`:''}<tr><td><b>${snagNo(s.no)}</b></td><td>${esc(s.type||'—')}</td>${con?'':`<td>${esc(s.contractorName||'—')}</td>`}${hasBldg?`<td>${esc(dmap[s.drawingId]?.building||'')}</td>`:''}<td>${esc(dmap[s.drawingId]?.level||'')}</td><td>${esc(s.location||'')}</td><td>${esc(s.personName||'—')}</td><td>${esc(s.priority||'')}</td><td>${fmtDate(s.due)}</td><td>${esc(ST[s.status]?.label||s.status)}</td></tr>`).join('')}
     </tbody></table>`;
   if(ov){
     html+=`<div class="r-h2" style="break-before:page">Drawing overview</div>`;
-    for(const d of DRAW[j.id]){const l=list.filter(s=>s.drawingId===d.id);if(!l.length||!ims[d.id])continue;
+    for(const d of [...DRAW[j.id]].sort(dwgCmp)){const l=list.filter(s=>s.drawingId===d.id);if(!l.length||!ims[d.id])continue;
       html+=`<div class="r-ov"><img src="${overview(ims[d.id],l)}"><div class="cap"><b>${esc(d.level||'')}</b> — ${esc(d.name)} · ${l.length} snag${l.length==1?'':'s'}: ${l.map(s=>snagNo(s.no)).join(', ')}</div></div>`;}
   }
   html+=`<div class="r-h2" style="break-before:page">Snag details</div>`;
-  for(const s of list){
+  for(const [i,s] of list.entries()){
     const d=dmap[s.drawingId]||{};
+    if(multiSec&&(i===0||secOf(s)!==secOf(list[i-1])))html+=`<div class="r-h3">${esc(secOf(s))}</div>`;
     let pics=[];
     if(photos){try{pics=(await getDocs(collection(db,'jobs',j.id,'snags',s.id,'photos'))).docs.map(x=>x.data()).sort((a,b)=>(a.at||0)-(b.at||0));}catch{}}
     html+=`<div class="r-snag"><div class="sh"><span class="n">${snagNo(s.no)}</span><span class="ty">${esc(s.type||'—')}</span><span class="status" style="background:${ST[s.status]?.c}">${ST[s.status]?.label}</span></div>
       <div class="sb">${ims[s.drawingId]?`<img src="${await snippet(ims[s.drawingId],s)}" alt="Location on drawing">`:'<div class="meta">Drawing not available offline</div>'}
         <div class="kv"><b>Trade</b><span>${esc(s.tradeName||'—')}</span><b>Contractor</b><span>${esc(s.contractorName||'—')}</span>
-        <b>Responsible</b><span>${esc(s.personName||'—')}</span><b>Floor / level</b><span>${esc(d.level||'—')}</span><b>Drawing</b><span>${esc(d.name||'—')}</span>
+        <b>Responsible</b><span>${esc(s.personName||'—')}</span>${d.building?`<b>Building</b><span>${esc(d.building)}</span>`:''}<b>Floor / level</b><span>${esc(d.level||'—')}</span><b>Drawing</b><span>${esc(d.name||'—')}</span>
         <b>Location</b><span>${esc(s.location||'—')}</span><b>Priority</b><span>${esc(s.priority||'—')}</span><b>Raised / due</b><span>${fmtDate(s.createdAt)} → ${fmtDate(s.due)}</span>
         ${s.status==='closed'?`<b>Signed off</b><span>${esc(s.signedOffByName||'')} · ${fmtDate(s.signedOffAt)}</span>`:''}
         ${s.desc?`<div class="desc">${esc(s.desc)}</div>`:''}

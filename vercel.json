@@ -1,9 +1,28 @@
 {
-  "regions": ["lhr1"],
+  "regions": [
+    "lhr1"
+  ],
   "rewrites": [
-    { "source": "/api/:route*", "destination": "/api?route=:route*" }
+    {
+      "source": "/api/:route*",
+      "destination": "/api?route=:route*"
+    }
   ],
   "headers": [
-    { "source": "/api(.*)", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }
+    {
+      "source": "/api(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/reminders",
+      "schedule": "0 6 * * *"
+    }
   ]
 }

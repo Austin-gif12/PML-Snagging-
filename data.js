@@ -349,6 +349,8 @@ async function wipe() {
 /* ═════════════ invitations & importing ═════════════ */
 // Emails a WorkOS invitation. Returns 'sent', 'resent' or 'has-login'.
 export async function sendInvite(email) { return (await api('POST', '/invite', { email })).status; }
+// Emails one contractor on a job their outstanding snags now. → {status: 'sent'|'nothing-outstanding'|'no-email-address', to, count}
+export const sendReminder = (job, contractor) => api('POST', '/reminders/send', { job, contractor });
 
 // One-off: copies a Firebase export (made by migrate/export-firestore.mjs) into the database.
 // Goes straight to the server in batches (needs signal), then syncs.

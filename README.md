@@ -75,6 +75,21 @@ If the login is read/write only (`pg_read_all_data,pg_write_all_data`), `/api` w
 
 **Own domain:** if you point a domain at the Vercel project (e.g. a subdomain whose DNS is on Cloudflare: add it in Vercel → Domains, then add the record Vercel shows in Cloudflare DNS with the proxy turned **off**/grey cloud), add that address to WorkOS too.
 
+### Email reminders (Resend)
+Contractors can be emailed their outstanding snags daily, every 2 days or weekly (job → **Contractors** → **Email reminders**). Vercel runs `/api/cron/reminders` every morning at 06:00 UTC (`vercel.json` → `crons`); see `lib/reminders.js`.
+1. Sign up at **resend.com** → **Domains → Add domain** `pml-snagging.com` → add the DNS records it shows in **Cloudflare DNS** (proxy off) → wait for *Verified*.
+2. **API Keys → Create** (sending access).
+3. In Vercel add:
+
+| Name | Value |
+|---|---|
+| `RESEND_API_KEY` | Resend `re_…` (secret) |
+| `REMINDER_FROM` | `PML Snagging <snagging@pml-snagging.com>` |
+| `CRON_SECRET` | any long random text (Vercel sends it with each scheduled run) |
+| `REMINDER_REPLY_TO` | *(optional)* e.g. `austin@planningmanager.co.uk` |
+
+Then redeploy. `/api` shows `"email":"ok"` when it's all set. **Send now** on a contractor emails them straight away, which is a good test.
+
 ### First sign-in
 Open the site → **First time? Create your login** with the owner email. You're in as Admin.
 
