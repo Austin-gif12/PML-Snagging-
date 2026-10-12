@@ -499,15 +499,14 @@ function showLogin(msg='',ok=false){
     ${msg?`<div class="auth-msg ${ok?'ok':''}">${esc(msg)}</div>`:''}
     <p style="font-size:14px">Use the email address PML gave access to.</p>
     <button class="btn btn-y btn-block" id="lGo">Sign in</button>
-    <button class="linkbtn" id="lNew">First time? Create your login</button>`);
-  const go=async signUp=>{
+    <p class="meta" style="margin-top:14px;text-align:center"><b>First time?</b> Open the invitation email from PML Snagging and tap the link in it to create your login. No email? Check your junk folder, or ask PML to send it again.</p>`);
+  // Sign-up is invite-only (switched off in WorkOS), so new people come in through their invitation email.
+  $('#lGo').onclick=async()=>{
     if(!navigator.onLine){showLogin('No signal. You need signal the first time you sign in on a device.');return;}
     $('#lGo').disabled=true;$('#lGo').textContent='Opening sign-in…';
-    try{await workosSignIn({signUp});}
+    try{await workosSignIn();}
     catch(err){showLogin('Could not open the sign-in page: '+(err.message||err));}
   };
-  $('#lGo').onclick=()=>go(false);
-  $('#lNew').onclick=()=>go(true);
 }
 function showNoAccess(email,disabled){
   authScreen(`<h1>${disabled?'Access switched off':'No access yet'}</h1>
@@ -924,13 +923,13 @@ async function invite(email,name,role='contractor',ask=true){
   return true;
 }
 // Sends (or resends) the WorkOS invitation email. Access itself comes from the users/{email} record,
-// so even if the email fails they can sign up themselves with that address.
+// but sign-up is invite-only, so they need this email to create their login.
 async function emailInvite(email){
   if(!navigator.onLine){toast('You need signal to send an invite');return;}
   try{
     const s=await sendInvite(email);
     toast(s==='has-login'?`${email} already has a login — they can sign in now`:`Invite ${s==='resent'?'sent again':'sent'} to ${email}`,4500);
-  }catch(e){toast(`Couldn't email the invite (${e.message}). They can still tap "Create your login" in the app using ${email}.`,7000);}
+  }catch(e){toast(`Couldn't email the invite (${e.message}). Try again from the Users list.`,7000);}
 }
 
 // Email reminder setting for a contractor on a job (sent by the API each morning, see lib/reminders.js)
