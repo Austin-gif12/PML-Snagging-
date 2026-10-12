@@ -6,3 +6,4 @@ firebase-export.json
 # Build tools
 node_modules/
 .vercel/
+*-restore.json

@@ -1,0 +1,10 @@
+# Never publish these: data backups, secrets and one-off scripts.
+# (Vercel doesn't read .gitignore when deploying from this folder.)
+firebase-export.json
+*-restore.json
+firebase-key.json
+*service-account*.json
+.env*
+db/
+migrate/*.mjs
+migrate/*.ps1
