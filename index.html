@@ -480,12 +480,22 @@ const snagRef=(jid,sid)=>doc(db,'jobs',jid,'snags',sid);
 const countBy=list=>{const o={open:0,progress:0,ready:0,closed:0};list.forEach(s=>o[s.status]=(o[s.status]||0)+1);return o;};
 
 const DEFAULT_TRADES=[
-  ['Painter & Decorator','#e11d48',['Paint peeling / flaking','Missed areas / patchy finish','Paint on fixtures or glass','Cracks not filled before painting','Runs or drips']],
-  ['Bricklayer','#b45309',['Damaged / chipped brick','Mortar joints incomplete','Mortar staining on face','Cavity tray / weep vents missing','Brickwork out of plumb']],
-  ['Dryliner / Plasterer','#7c3aed',['Board damaged','Poor joint finish','Screw pops','Uneven / wavy surface','Missing corner bead']],
-  ['Fire Stopping','#dc2626',['Penetration not sealed','Incorrect product used','Missing ID label','Gap around fire damper','Batt damaged / incomplete']],
-  ['Joiner','#0d9488',['Door not closing / latching','Frame damaged','Missing ironmongery','Skirting gaps','Architrave not fixed']],
-  ['Electrician','#2563eb',['Missing faceplate','Socket / switch not level','Light fitting not working','Cable exposed']]];
+  ['Painter & Decorator','#e11d48',['Missing paint or not enough coats','Patchy finish or runs','Peeling or flaking','Paint on fixtures or glass','Cracks or mastic not done','See comments below']],
+  ['Bricklayer','#b45309',['Damaged or cracked brick','Mortar joints poor or incomplete','Mortar staining on face','Out of plumb or uneven','Cavity tray or weep vents missing','See comments below']],
+  ['Dryliner / Plasterer','#7c3aed',['Board damaged or holes not made good','Poor joint finish or screw pops','Uneven or wavy surface','Cracked or blown plaster','Missing corner bead','See comments below']],
+  ['Fire Stopping','#dc2626',['Penetration not sealed or incomplete','Incorrect product or non approved detail','Missing ID label or photo evidence','Batt or mastic damaged','Gap around fire damper','See comments below']],
+  ['Fire Doors / Doors','#ea580c',['Door not closing or latching','Gaps out of tolerance','Intumescent or smoke seals missing','Ironmongery missing or loose','Label or signage missing','See comments below']],
+  ['Joiner / Carpenter','#0d9488',['Skirting or architrave gaps','Skirting or architrave not fixed','Poor mitres or joints','Boxing in incomplete','Frame or timber damaged','See comments below']],
+  ['Electrician','#2563eb',['Faceplate missing or not level','Socket or switch not working','Light fitting missing or not working','Cable exposed','Emergency lighting or detector fault','See comments below']],
+  ['Mechanical','#0891b2',['Leak','Pipework not clipped or lagged','Low pressure or no hot water','Sanitaryware or silicone poor','Radiator or boiler not working','See comments below']],
+  ['Ductwork / Ventilation','#4f46e5',['Ductwork not supported','Joints not sealed','Damaged or insulation missing','Grille or extract fan fault','Fire damper access or install issue','See comments below']],
+  ['Tiler','#db2777',['Cracked or chipped tile','Grout missing or cracked','Uneven or hollow tiles','Poor cuts or trim missing','Silicone missing','See comments below']],
+  ['Flooring','#a16207',['Floor damaged or scratched','Lifting or bubbling','Gaps or poor joins','Threshold strip missing','Uneven or squeaky floor','See comments below']],
+  ['Windows & Glazing','#0284c7',['Window not opening or closing','Glass scratched or cracked','Seals or mastic missing','Restrictor or handle missing','Draught or leak','See comments below']],
+  ['Roofer','#57534e',['Roof leak','Slipped or broken tile','Flashing or lead work poor','Gutter or downpipe fault','Ponding on flat roof','See comments below']],
+  ['Externals / Groundworks','#15803d',['Paving or kerb uneven or damaged','Drainage blocked or ponding','Manhole cover damaged or not level','Fencing damaged or incomplete','Landscaping incomplete','See comments below']],
+  ['Cleaner','#65a30d',['Not cleaned','Dust or debris left','Paint or plaster splashes','Protection not removed','Rubbish left on site','See comments below']],
+  ['General','#64748b',['Damage by others','Work incomplete','Not as per drawing or spec','Health and safety issue','See comments below']]];
 
 /* ═════════════ refresh handling ═════════════ */
 // Live updates re-draw the page, but never while someone is typing in a box.
@@ -1093,8 +1103,20 @@ function viewLibrary(tab){
 }
 function libTrades(){
   const L=$('#lib');
-  L.innerHTML=`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Each trade has its own defect list — these are the options when you drop a pin.</p><span class="spacer"></span><button class="btn btn-y" id="addT">＋ Add trade</button></div><div class="lib-grid" id="tg"></div>`;
+  L.innerHTML=`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Each trade has its own defect list — these are the options when you drop a pin.</p><span class="spacer"></span><button class="btn btn-o" id="stdT">↻ Use PML standard trades</button><button class="btn btn-y" id="addT">＋ Add trade</button></div><div class="lib-grid" id="tg"></div>`;
   $('#addT').onclick=()=>{LIB.trades.push({id:uid(),name:'New trade',color:'#64748b',types:[]});saveLib();libTrades();};
+  $('#stdT').onclick=async()=>{
+    if(!await modal('Use PML standard trades',`<p>Puts in the PML standard list: <b>${DEFAULT_TRADES.length} trades</b> with their defect types.</p>
+      <p class="meta">Trades you already have with the same name (or "Joiner" for "Joiner / Carpenter" etc.) get the standard defect list in place of their current one, and keep their colour. Other trades of yours are kept, after the standard ones. Existing snags keep their wording.</p>`,{ok:'Use standard list'}))return;
+    const first=n=>low(n).split(' / ')[0].trim();
+    const left=[...LIB.trades];
+    LIB.trades=DEFAULT_TRADES.map(([name,color,types])=>{
+      const i=left.findIndex(t=>low(t.name)===low(name)||low(t.name)===first(name)||first(t.name)===first(name));
+      const old=i>=0?left.splice(i,1)[0]:null;
+      return{id:old?.id||uid(),name,color:old?.color||color,types:[...types]};
+    }).concat(left);
+    saveLib(true);libTrades();toast('PML standard trades in place');
+  };
   const g=$('#tg');
   LIB.trades.forEach(t=>{
     const c=document.createElement('div');c.className='card lib-card';
