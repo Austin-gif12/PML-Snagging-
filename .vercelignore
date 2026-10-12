@@ -8,3 +8,4 @@ firebase-key.json
 db/
 migrate/*.mjs
 migrate/*.ps1
+.claude/

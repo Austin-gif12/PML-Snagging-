@@ -247,7 +247,7 @@ export function sync() {
   if (!session || expired || !navigator.onLine) return Promise.resolve();
   return syncing || (syncing = (async () => {
     await flush();
-    const knownJobs = meta.role === 'contractor' ? [...base.keys()].filter(p => /^jobs\/[^/]+$/.test(p)).map(p => p.slice(5)) : [];
+    const knownJobs = meta.role === 'contractor' || meta.role === 'client' ?[...base.keys()].filter(p => /^jobs\/[^/]+$/.test(p)).map(p => p.slice(5)) : [];
     const r = await api('POST', '/sync', { since: meta.cursor, knownJobs });
     if (meta.role !== undefined && r.me.role !== meta.role) {
       // Role changed (e.g. contractor → site manager): start again from scratch.
@@ -259,7 +259,7 @@ export function sync() {
     }
     for (const d of r.docs) setBase(d.path, d.deleted ? undefined : d.data);
     if (r.visible) {
-      // Contractors: forget jobs and snags they no longer have access to.
+      // Contractors and clients: forget jobs and snags they no longer have access to.
       const jobs = new Set(r.visible.jobs), snags = new Set(r.visible.snags);
       for (const p of [...base.keys()]) {
         const s = segs(p);

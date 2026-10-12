@@ -7,3 +7,4 @@ firebase-export.json
 node_modules/
 .vercel/
 *-restore.json
+.claude/

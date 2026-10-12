@@ -54,6 +54,7 @@ a{color:inherit}
 .role{font:700 10px var(--ffh);text-transform:uppercase;letter-spacing:1px;padding:3px 7px;border-radius:6px;background:var(--yellow);color:var(--black)}
 .role.manager{background:#93c5fd}
 .role.contractor{background:#d1d5db}
+.role.client{background:#c4b5fd}
 .menu{position:absolute;right:12px;top:calc(100% + 6px);background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);min-width:220px;overflow:hidden;z-index:60}
 .menu a,.menu button{display:block;width:100%;text-align:left;padding:11px 14px;font-size:13.5px;text-decoration:none;border:none;background:#fff;cursor:pointer;border-bottom:1px solid var(--border)}
 .menu a:hover,.menu button:hover{background:var(--yellow-soft)}
@@ -219,6 +220,14 @@ body.viewer-mode{overflow:hidden}
 .tl::before{content:'';position:absolute;left:-5px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--yellow)}
 .tl .when{font-size:11px;color:var(--muted)}
 .tl .note{background:#f7f5f0;border-radius:6px;padding:5px 8px;margin-top:3px;white-space:pre-wrap}
+.comments{display:flex;flex-direction:column;gap:8px}
+.cm{background:#f7f5f0;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px}
+.cm.me{background:var(--yellow-soft);border-color:#f3d98a}
+.cm .who2{font-size:11px;color:var(--muted);margin-bottom:3px}
+.cm .who2 b{color:var(--ink)}
+.cm .txt{white-space:pre-wrap;word-break:break-word}
+.cm-add{display:flex;gap:8px;align-items:flex-end}
+.cm-add textarea{flex:1;min-height:44px}
 
 /* lists */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -381,7 +390,7 @@ const STATUSES=[
   {k:'closed',label:'Signed off',c:'#15803d'}];
 const ST=Object.fromEntries(STATUSES.map(s=>[s.k,s]));
 const PRIORITIES=['Low','Medium','High'];
-const ROLES={admin:'Admin',manager:'Site manager',contractor:'Contractor'};
+const ROLES={admin:'Admin',manager:'Site manager',contractor:'Contractor',client:'Client'};
 const fmtDate=v=>{if(!v)return'—';const d=new Date(v);return isNaN(d)?String(v):d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});};
 const fmtWhen=v=>{const d=new Date(v);return isNaN(d)?'':d.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});};
 const today=()=>new Date().toISOString().slice(0,10);
@@ -460,6 +469,9 @@ const subs={snags:{},drawings:{}};
 const isAdmin=()=>ME?.role==='admin';
 const isStaff=()=>ME&&(ME.role==='admin'||ME.role==='manager');
 const isCon=()=>ME?.role==='contractor';
+const isClient=()=>ME?.role==='client';
+// A client can change or delete a snag they raised until PML assigns a contractor (the API checks this too).
+const clientOwns=sn=>isClient()&&sn.raisedByClient===true&&sn.createdBy===ME.email&&!sn.contractorId&&sn.status==='open';
 const job=id=>JOBS.find(j=>j.id===id);
 const trade=id=>LIB.trades.find(t=>t.id===id);
 const snagsOf=id=>SNAGS[id]||[];
@@ -596,7 +608,7 @@ function startData(){
     subs.users=onSnapshot(collection(db,'users'),snap=>{for(const k in USERS)delete USERS[k];snap.docs.forEach(d=>USERS[d.id]=d.data());bump();},err=>console.warn('users',err));
     subs.jobs=onSnapshot(collection(db,'jobs'),{includeMetadataChanges:true},jobsSnap,jobsErr);
   }else{
-    subs.jobs=onSnapshot(query(collection(db,'jobs'),where('contractorEmails','array-contains',ME.email)),{includeMetadataChanges:true},jobsSnap,jobsErr);
+    subs.jobs=onSnapshot(query(collection(db,'jobs'),where(isClient()?'clientEmails':'contractorEmails','array-contains',ME.email)),{includeMetadataChanges:true},jobsSnap,jobsErr);
   }
   drawTopbar();
   route();
@@ -612,7 +624,8 @@ function syncSnagSubs(){
   for(const id of Object.keys(subs.snags))if(!want.has(id)){subs.snags[id]();delete subs.snags[id];delete SNAGS[id];}
   for(const id of want)if(!subs.snags[id]){
     const col=collection(db,'jobs',id,'snags');
-    const q=isStaff()?col:query(col,where('contractorEmails','array-contains',ME.email));
+    // clients see every snag on their jobs; contractors only their own
+    const q=isStaff()||isClient()?col:query(col,where('contractorEmails','array-contains',ME.email));
     subs.snags[id]=onSnapshot(q,{includeMetadataChanges:true},snap=>{
       SNAGS[id]=snap.docs.map(d=>({id:d.id,jobId:id,_pending:d.metadata.hasPendingWrites,...d.data()}));
       updateSync();bump();
@@ -692,10 +705,10 @@ function route(){
     ensureDrawings(j.id);
     if(p[2]==='drawing')return viewDrawing(j.id,p[3],p[4]);
     if(p[2]==='areas'&&isAdmin())return viewAreas(j.id,p[3]);
-    if(isStaff())return viewJob(j.id,p[2]||'drawings');
+    if(isStaff()||isClient())return viewJob(j.id,p[2]||'drawings');
     return viewMySnags(j.id);
   }
-  isStaff()?viewJobs():viewMySnags();
+  isStaff()||isClient()?viewJobs():viewMySnags();
 }
 window.addEventListener('hashchange',route);
 
@@ -708,9 +721,13 @@ function viewJobs(){
     const active=JOBS.filter(j=>j.status!=='completed'),done=JOBS.filter(j=>j.status==='completed');
     const list=jobsFilter==='active'?active:done;
     const ready=JOBS.flatMap(j=>snagsOf(j.id).filter(s=>s.status==='ready').map(s=>({s,j}))).sort((a,b)=>(b.s.updatedAt||0)-(a.s.updatedAt||0));
+    const fromClients=JOBS.flatMap(j=>snagsOf(j.id).filter(s=>s.raisedByClient&&!s.contractorId&&s.status==='open').map(s=>({s,j}))).sort((a,b)=>(b.s.createdAt||0)-(a.s.createdAt||0));
     $('#app').innerHTML=`<div class="main">
-      <div class="page-head"><div><h1>Jobs</h1><p class="muted">Welcome back ${esc(ME.name||'')}.</p></div><span class="spacer"></span><button class="btn btn-y" id="newJob">＋ New job</button></div>
-      ${ready.length?`<div class="card inbox"><div class="ih"><h2>🔔 Awaiting your sign-off</h2><span class="chip" style="background:#dbeafe;color:#1e40af">${ready.length}</span></div>
+      <div class="page-head"><div><h1>Jobs</h1><p class="muted">Welcome back ${esc(ME.name||'')}.${isClient()?' Open a job to see its snags, or to add one on the drawings.':''}</p></div><span class="spacer"></span>${isStaff()?'<button class="btn btn-y" id="newJob">＋ New job</button>':''}</div>
+      ${isStaff()&&fromClients.length?`<div class="card inbox"><div class="ih"><h2>👤 New from clients — needs a contractor</h2><span class="chip" style="background:#ede9fe;color:#5b21b6">${fromClients.length}</span></div>
+        ${fromClients.slice(0,8).map(({s,j})=>`<div class="snag-row" data-go="#/job/${j.id}/drawing/${s.drawingId}/${s.id}"><span class="n">${snagNo(s.no)}</span><div class="b"><b>${esc(s.desc||'Snag')}</b><span class="meta">${esc(s.createdByName||'Client')} · ${esc(j.name)}${s.location?' · '+esc(s.location):''}</span></div>${statusPill(s.status)}</div>`).join('')}
+        ${fromClients.length>8?`<div class="meta" style="padding:8px 14px">＋ ${fromClients.length-8} more</div>`:''}</div>`:''}
+      ${isStaff()&&ready.length?`<div class="card inbox"><div class="ih"><h2>🔔 Awaiting your sign-off</h2><span class="chip" style="background:#dbeafe;color:#1e40af">${ready.length}</span></div>
         ${ready.slice(0,8).map(({s,j})=>`<div class="snag-row" data-go="#/job/${j.id}/drawing/${s.drawingId}/${s.id}"><span class="n">${snagNo(s.no)}</span><div class="b"><b>${esc(s.type||'Snag')}</b><span class="meta">${esc(s.contractorName||'')} · ${esc(j.name)}${s.location?' · '+esc(s.location):''}</span></div>${statusPill(s.status)}</div>`).join('')}
         ${ready.length>8?`<div class="meta" style="padding:8px 14px">＋ ${ready.length-8} more — open the job's snag list</div>`:''}</div>`:''}
       <div class="pills"><button class="pill ${jobsFilter==='active'?'on':''}" data-f="active">In progress<b>${active.length}</b></button><button class="pill ${jobsFilter==='completed'?'on':''}" data-f="completed">Completed<b>${done.length}</b></button></div>
@@ -729,7 +746,7 @@ function viewJobs(){
     });
     document.querySelectorAll('[data-go]').forEach(r=>r.onclick=()=>location.hash=r.dataset.go);
     document.querySelectorAll('.pill[data-f]').forEach(b=>b.onclick=()=>{jobsFilter=b.dataset.f;draw();});
-    $('#newJob').onclick=()=>editJob();
+    $('#newJob')&&($('#newJob').onclick=()=>editJob());
   }
 }
 async function editJob(j){
@@ -753,16 +770,19 @@ function viewJob(id,tab){
   function drawShell(j){
     setCrumbs([['Jobs','#/'],[j.name]]);
     const c=countBy(snagsOf(id));
+    const tabs=isStaff()?[['drawings','📐 Drawings'],['snags','📍 Snag list'],['contractors','🏢 Contractors'],['clients','👤 Clients'],['reports','📄 Reports']]
+      :[['drawings','📐 Drawings'],['snags','📍 Snag list']];
     $('#app').innerHTML=`<div class="main">
       <div class="hero"><div><div class="ref">${esc(j.ref||'')}${j.status==='completed'?' · ✓ COMPLETED':''}</div><h1>${esc(j.name)}</h1><div class="addr">${esc([j.address,j.client].filter(Boolean).join(' · '))}</div></div>
         <div class="kpis"><div class="kpi"><b>${c.open+c.progress}</b><span>Open</span></div><div class="kpi"><b>${c.ready}</b><span>To sign off</span></div><div class="kpi"><b>${c.closed}</b><span>Signed off</span></div></div>
-        <div class="row"><button class="btn btn-ghost btn-sm" id="editJob">Edit</button><button class="btn btn-ghost btn-sm" id="doneJob">${j.status==='completed'?'Reopen job':'Mark job completed'}</button>${isAdmin()?'<button class="btn btn-ghost btn-sm" id="delJob">Delete</button>':''}</div></div>
-      <nav class="tabs">${[['drawings','📐 Drawings'],['snags','📍 Snag list'],['contractors','🏢 Contractors'],['reports','📄 Reports']].map(([k,t])=>`<a class="tab ${k===tab?'on':''}" href="#/job/${id}/${k}">${t}</a>`).join('')}</nav>
+        ${isStaff()?`<div class="row"><button class="btn btn-ghost btn-sm" id="editJob">Edit</button><button class="btn btn-ghost btn-sm" id="doneJob">${j.status==='completed'?'Reopen job':'Mark job completed'}</button>${isAdmin()?'<button class="btn btn-ghost btn-sm" id="delJob">Delete</button>':''}</div>`:''}</div>
+      <nav class="tabs">${tabs.map(([k,t])=>`<a class="tab ${k===tab?'on':''}" href="#/job/${id}/${k}">${t}</a>`).join('')}</nav>
       <div id="tabBody"></div></div>`;
-    $('#editJob').onclick=()=>editJob(j);
-    $('#doneJob').onclick=()=>w(updateDoc(doc(db,'jobs',j.id),{status:j.status==='completed'?'active':'completed'}));
+    $('#editJob')&&($('#editJob').onclick=()=>editJob(j));
+    $('#doneJob')&&($('#doneJob').onclick=()=>w(updateDoc(doc(db,'jobs',j.id),{status:j.status==='completed'?'active':'completed'})));
     $('#delJob')&&($('#delJob').onclick=()=>deleteJob(j));
-    ({drawings:tabDrawings,snags:tabSnags,contractors:tabContractors,reports:tabReports}[tab]||tabDrawings)(j);
+    const show=tabs.some(([k])=>k===tab)?tab:'drawings';
+    ({drawings:tabDrawings,snags:tabSnags,contractors:tabContractors,clients:tabClients,reports:tabReports}[show])(j);
   }
 }
 async function deleteJob(j){
@@ -785,18 +805,20 @@ async function deleteJob(j){
 function tabDrawings(j){
   const b=$('#tabBody');
   const list=DRAW[j.id];
-  b.innerHTML=`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Upload GA drawings as an image (JPG/PNG) or PDF. Each PDF page becomes its own drawing.</p><span class="spacer"></span><button class="btn btn-y" id="up">⬆ Upload drawing</button></div><div class="grid" id="dg"></div>`;
-  $('#up').onclick=()=>uploadDrawing(j);
+  b.innerHTML=isStaff()?`<div class="row" style="margin-bottom:14px"><p class="muted" style="font-size:13px">Upload GA drawings as an image (JPG/PNG) or PDF. Each PDF page becomes its own drawing.</p><span class="spacer"></span><button class="btn btn-y" id="up">⬆ Upload drawing</button></div><div class="grid" id="dg"></div>`
+    :`<p class="muted" style="font-size:13px;margin-bottom:14px">Open a drawing to see the snags on it, or tap <b>📍 Add snag</b> there to raise a new one.</p><div class="grid" id="dg"></div>`;
+  $('#up')&&($('#up').onclick=()=>uploadDrawing(j));
   const g=$('#dg');
   if(!list){g.innerHTML='<div class="empty card" style="grid-column:1/-1">Loading drawings…</div>';return;}
-  if(!list.length){g.innerHTML=`<div class="empty card" style="grid-column:1/-1"><b>No drawings yet</b>Upload a GA plan to start dropping snag pins on it.</div>`;return;}
+  if(!list.length){g.innerHTML=`<div class="empty card" style="grid-column:1/-1"><b>No drawings yet</b>${isStaff()?'Upload a GA plan to start dropping snag pins on it.':'PML hasn\'t added any drawings to this job yet.'}</div>`;return;}
   for(const d of list){
     const n=snagsOf(j.id).filter(s=>s.drawingId===d.id),open=n.filter(s=>s.status!=='closed').length;
     const el=document.createElement('div');el.className='card dwg-card';
     el.innerHTML=`<div class="thumb" style="${d.thumb?`background-image:url('${d.thumb}')`:''}"><span class="lvl">${esc([d.building,d.level].filter(Boolean).join(' · ')||'—')}</span></div><div class="body"><b>${esc(d.name)}</b><span class="chip">${open} open / ${n.length}</span>
-      ${isAdmin()?'<button class="x" title="Mark rooms / areas" data-a>▭</button>':''}<button class="x" title="Edit" data-e>✎</button><button class="x" title="Delete" data-d>✕</button></div>`;
+      ${isAdmin()?'<button class="x" title="Mark rooms / areas" data-a>▭</button>':''}${isStaff()?'<button class="x" title="Edit" data-e>✎</button><button class="x" title="Delete" data-d>✕</button>':''}</div>`;
     el.onclick=e=>{if(e.target.closest('[data-a],[data-e],[data-d]'))return;location.hash=`#/job/${j.id}/drawing/${d.id}`;};
     if(isAdmin())el.querySelector('[data-a]').onclick=()=>location.hash=`#/job/${j.id}/areas/${d.id}`;
+    if(!isStaff()){g.append(el);continue;}
     el.querySelector('[data-e]').onclick=async()=>{const v=await drawingForm(d.name,d.level,d.building,j.id);if(v)w(updateDoc(doc(db,'jobs',j.id,'drawings',d.id),{name:v.name||d.name,level:v.level,building:v.building.trim()}));};
     el.querySelector('[data-d]').onclick=async()=>{
       if(!await confirmBox('Delete drawing',`Delete <b>${esc(d.name)}</b>${n.length?` and its ${n.length} snag${n.length==1?'':'s'}`:''}?`))return;
@@ -878,7 +900,7 @@ function tabSnags(j){
       (!F.status||(F.status==='notclosed'?s.status!=='closed':s.status===F.status))&&
       (!q||low([s.type,s.desc,s.location,snagNo(s.no),s.contractorName].join(' ')).includes(q))).sort((a,b)=>a.no-b.no);
     $('#sb').innerHTML=list.length?list.map(s=>`<tr class="click" data-id="${s.id}">
-      <td class="no">${snagNo(s.no)}${s._pending?' <span class="pend">⏳</span>':''}</td><td><b>${esc(s.type||'—')}</b><div class="meta"><span style="color:${s.tradeColor||'#999'}">●</span> ${esc(s.tradeName||'')}</div></td>
+      <td class="no">${snagNo(s.no)}${s._pending?' <span class="pend">⏳</span>':''}</td><td><b>${esc(s.type||(s.raisedByClient?'Raised by client':'—'))}</b><div class="meta">${s.tradeName?`<span style="color:${s.tradeColor||'#999'}">●</span> ${esc(s.tradeName)}`:esc((s.desc||'').slice(0,80))}</div></td>
       <td>${esc(s.contractorName||'—')}<div class="meta">${esc(s.personName||'')}</div></td><td>${esc(dmap[s.drawingId]?.level||'')}<div class="meta">${esc(s.location||'')}</div></td>
       <td>${esc(s.priority||'')}</td><td>${fmtDate(s.due)}</td><td>${statusPill(s.status)}</td></tr>`).join(''):`<tr><td colspan="7" class="empty">No snags match.</td></tr>`;
     document.querySelectorAll('#sb tr[data-id]').forEach(tr=>tr.onclick=()=>{const s=findSnag(j.id,tr.dataset.id);location.hash=`#/job/${j.id}/drawing/${s.drawingId}/${s.id}`;});
@@ -920,7 +942,7 @@ async function invite(email,name,role='contractor',ask=true){
   email=low(email);
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){toast('That email address doesn\'t look right');return false;}
   if(!navigator.onLine){toast('You need signal to give app access');return false;}
-  if(ask&&!await modal('Give app access',`<p>Give <b>${esc(email)}</b> <b>${esc(ROLES[role])}</b> access?</p><p class="meta">They'll get an email invitation to create their PML Snagging login. ${role==='contractor'?'They will only see snags assigned to their company on jobs where this email is listed.':''}</p>`,{ok:'Give access & send invite'}))return false;
+  if(ask&&!await modal('Give app access',`<p>Give <b>${esc(email)}</b> <b>${esc(ROLES[role])}</b> access?</p><p class="meta">They'll get an email invitation to create their PML Snagging login. ${role==='contractor'?'They will only see snags assigned to their company on jobs where this email is listed.':role==='client'?'They will only see the jobs where this email is listed as a client, and can add snags and comments there.':''}</p>`,{ok:'Give access & send invite'}))return false;
   try{await setDoc(doc(db,'users',email),{email,name:name||email.split('@')[0],role,active:true,createdAt:Date.now(),createdBy:ME.email});}
   catch(e){toast('Could not give access: '+(e.code||e.message),5000);return false;}
   await emailInvite(email);
@@ -1016,6 +1038,47 @@ function tabContractors(j){
   };
 }
 
+/* ═════════════ clients (per job) ═════════════ */
+// Clients see every snag on the job, can raise new ones and comment. Who they are is kept on the job
+// (clients + clientEmails), the same way contractors are.
+const clientSaveT={};
+function tabClients(j){
+  const b=$('#tabBody');
+  const work=VIEW.workClients&&VIEW.workClients.id===j.id&&clientSaveT[j.id]?VIEW.workClients:(VIEW.workClients={id:j.id,clients:clone(j.clients||[])});
+  b.innerHTML=`<div class="note-bar">Clients on <b>this job</b> can see every snag on it (but not the contractors' contact details or notes), raise new snags on the drawings and add comments. They can't change anything else. Add their email and tap <b>Give app access</b> so they can log in.</div>
+    <div class="row" style="margin-bottom:14px"><button class="btn btn-y" id="addCl">＋ Add client</button></div>
+    <div class="card lib-card"><div class="people" id="cl" style="display:flex;flex-direction:column;gap:8px"></div></div>`;
+  const save=()=>{
+    clearTimeout(clientSaveT[j.id]);
+    clientSaveT[j.id]=setTimeout(()=>{
+      delete clientSaveT[j.id];
+      const clients=clone(work.clients);
+      w(updateDoc(doc(db,'jobs',j.id),{clients,clientEmails:[...new Set(clients.map(c=>low(c.email)).filter(Boolean))]}));
+    },600);
+  };
+  const draw=()=>{
+    const host=$('#cl');host.innerHTML='';
+    if(!work.clients.length)host.innerHTML='<p class="muted" style="font-size:13px">No clients on this job yet.</p>';
+    work.clients.forEach(c=>{
+      const r=document.createElement('div');r.className='person';
+      r.innerHTML=`<input data-f="name" placeholder="Name" value="${esc(c.name)}"><input data-f="company" placeholder="Company" value="${esc(c.company)}"><button class="x" title="Remove">✕</button>
+        <input data-f="email" type="email" placeholder="Email (needed to log in)" value="${esc(c.email)}" style="grid-column:1/3">
+        ${c.email?`<div class="acc">${accessBadge(c.email,c.name)}</div>`:''}`;
+      r.querySelectorAll('input').forEach(i=>{
+        i.oninput=()=>{c[i.dataset.f]=i.dataset.f==='email'?low(i.value):i.value;save();};
+        if(i.dataset.f==='email')i.onchange=draw;
+      });
+      r.querySelector('button.x').onclick=async()=>{
+        if(!await confirmBox('Remove client',`Remove <b>${esc(c.name||c.email||'this client')}</b> from this job? They will no longer see its snags.`,'Remove'))return;
+        work.clients=work.clients.filter(x=>x!==c);save();draw();};
+      host.append(r);
+    });
+    host.querySelectorAll('[data-invite]').forEach(b=>b.onclick=async()=>{if(await invite(b.dataset.invite,b.dataset.name,'client'))draw();});
+  };
+  draw();
+  $('#addCl').onclick=()=>{work.clients.push({id:uid(),name:'',company:'',email:''});save();draw();setTimeout(()=>{const i=[...document.querySelectorAll('#cl input[data-f=name]')].pop();i?.focus();},30);};
+}
+
 /* ═════════════ library (trades & defects, main contractor list) ═════════════ */
 function viewLibrary(tab){
   setCrumbs([['Jobs','#/'],['Library']]);
@@ -1064,21 +1127,22 @@ function viewUsers(){
   setCrumbs([['Jobs','#/'],['Users & permissions']]);
   VIEW.refresh=draw;draw();
   function draw(){
-    const order={admin:0,manager:1,contractor:2};
+    const order={admin:0,manager:1,contractor:2,client:3};
     const list=Object.values(USERS).sort((a,b)=>(order[a.role]-order[b.role])||String(a.name).localeCompare(String(b.name)));
     $('#app').innerHTML=`<div class="main">
       <div class="page-head"><div><h1>Users &amp; permissions</h1><p class="muted">Who can log in and what they can do.</p></div><span class="spacer"></span><button class="btn btn-y" id="addU">＋ Add user</button></div>
       <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-bottom:16px">
         <div class="card" style="padding:12px 14px"><span class="role">Admin</span><p class="meta" style="margin-top:6px">Everything, including users &amp; permissions and deleting jobs.</p></div>
         <div class="card" style="padding:12px 14px"><span class="role manager">Site manager</span><p class="meta" style="margin-top:6px">All jobs: create jobs, upload drawings, add &amp; edit snags, sign off, reports, contractor logins.</p></div>
-        <div class="card" style="padding:12px 14px"><span class="role contractor">Contractor</span><p class="meta" style="margin-top:6px">Only their own snags. Can mark in progress / completed, add notes &amp; photos. Can't sign off.</p></div></div>
+        <div class="card" style="padding:12px 14px"><span class="role contractor">Contractor</span><p class="meta" style="margin-top:6px">Only their own snags. Can mark in progress / completed, add notes &amp; photos. Can't sign off.</p></div>
+        <div class="card" style="padding:12px 14px"><span class="role client">Client</span><p class="meta" style="margin-top:6px">Every snag on the jobs they're added to (as a client). Can add snags &amp; comments. Nothing else.</p></div></div>
       <div class="card tbl-wrap"><table class="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Access</th><th></th></tr></thead><tbody>
       ${list.map(u=>{const me=u.email===ME.email;return`<tr data-e="${esc(u.email)}"><td><input type="text" data-k="name" value="${esc(u.name)}"></td><td>${esc(u.email)}</td>
         <td><select data-k="role" ${me?'disabled':''}>${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select></td>
         <td><label class="row" style="gap:6px;font-size:13px"><input type="checkbox" data-k="active" ${u.active?'checked':''} ${me?'disabled':''}> ${u.active?'On':'Off'}</label></td>
         <td>${me?'':'<button class="btn btn-o btn-sm" data-pw>Resend invite</button>'}</td></tr>`;}).join('')}
       </tbody></table></div>
-      <p class="meta" style="margin-top:10px">Turning access off stops someone logging in to the app straight away. Contractors see snags when their email is listed on a job's contractor.</p>
+      <p class="meta" style="margin-top:10px">Turning access off stops someone logging in to the app straight away. Contractors see snags when their email is listed on a job's contractor; clients see a job when they're on its Clients tab.</p>
       <div class="card" style="padding:14px;margin-top:20px"><b>Move data across from Firebase</b>
         <p class="meta" style="margin:6px 0 10px">One-off: copies jobs, drawings, snags, photos, users and settings from the old Firebase app. Use <b>Copy straight from Firebase</b> with your old Firebase email and password, or choose a <code>firebase-export.json</code> made by <code>migrate/export-firestore.mjs</code>. Only run it once: running it again puts the Firebase copies back over any changes made since.</p>
         <button class="btn btn-y btn-sm" id="impLive">Copy straight from Firebase…</button> <button class="btn btn-o btn-sm" id="impFb">Choose export file…</button> <span class="meta" id="impMsg"></span></div></div>`;
@@ -1118,7 +1182,7 @@ function viewUsers(){
     });
     $('#addU').onclick=async()=>{
       const v=await modal('Add user',`<div class="f"><label>Name</label><input name="name"></div><div class="f"><label>Email</label><input name="email" type="email"></div>
-        <div class="f"><label>Role</label><select name="role"><option value="manager">Site manager</option><option value="admin">Admin</option><option value="contractor">Contractor</option></select></div>
+        <div class="f"><label>Role</label><select name="role"><option value="manager">Site manager</option><option value="admin">Admin</option><option value="contractor">Contractor</option><option value="client">Client</option></select></div>
         <p class="meta">They'll get an email invitation to create their PML Snagging login.</p>`,{ok:'Give access & send invite'});
       if(v&&v.email)await invite(v.email,v.name,v.role,false);
     };
@@ -1321,12 +1385,12 @@ const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 
 async function viewDrawing(jobId,dwgId,snagId){
   const j=()=>job(jobId);
-  const back=isStaff()?`#/job/${jobId}`:'#/';
+  const back=isStaff()||isClient()?`#/job/${jobId}`:'#/';
   const list=DRAW[jobId];
   if(!list){$('#app').innerHTML='<div class="empty">Loading drawing…</div>';VIEW.refresh=route;return;}
   const d=list.find(x=>x.id===dwgId);
   if(!d){$('#app').innerHTML=`<div class="main"><div class="empty card"><b>Drawing not found</b>It may have been deleted. <a href="${back}">Go back</a></div></div>`;return;}
-  setCrumbs(isStaff()?[['Jobs','#/'],[j().name,`#/job/${jobId}`],[d.name]]:[['My snags','#/'],[j().name],[d.name]]);
+  setCrumbs(isStaff()||isClient()?[['Jobs','#/'],[j().name,`#/job/${jobId}`],[d.name]]:[['My snags','#/'],[j().name],[d.name]]);
   document.body.classList.add('viewer-mode');
   document.documentElement.style.setProperty('--tb',$('#topbar').offsetHeight+'px');
   const conOpts=(j().contractors||[]).map(c=>`<option value="${c.id}">${esc(c.company)}</option>`).join('');
@@ -1337,8 +1401,8 @@ async function viewDrawing(jobId,dwgId,snagId){
       ${isStaff()?`<select id="vf"><option value="">All contractors</option>${conOpts}</select>`:''}
       <span class="spacer"></span>
       ${isAdmin()?`<a class="btn btn-o btn-sm" href="#/job/${jobId}/areas/${d.id}" title="Drag boxes over rooms and name them — snags dropped inside get that location">▭ <span class="lbl">Areas</span></a>`:''}
-      ${isStaff()?`<button class="btn btn-o btn-sm" id="memBtn" title="New snags copy the trade, defect, contractor, person, priority, due date and description from the last snag you worked on">↻ <span class="lbl">Remember last snag</span> <b id="memState"></b></button>
-      <button class="btn btn-y" id="addBtn">📍 <span class="lbl">Add snag</span></button>`:''}
+      ${isStaff()?`<button class="btn btn-o btn-sm" id="memBtn" title="New snags copy the trade, defect, contractor, person, priority, due date and description from the last snag you worked on">↻ <span class="lbl">Remember last snag</span> <b id="memState"></b></button>`:''}
+      ${isStaff()||isClient()?`<button class="btn btn-y" id="addBtn">📍 <span class="lbl">Add snag</span></button>`:''}
     </div>
     <div class="vbody">
       <div class="viewer" id="viewer"><img class="plan" id="plan" alt=""><div class="areas faint" id="areasV" hidden></div><div class="pins" id="pins"></div>
@@ -1403,8 +1467,8 @@ async function viewDrawing(jobId,dwgId,snagId){
     $('#addBtn')?.classList.toggle('on',m==='add');
     positionPins();
   }
+  if($('#addBtn'))$('#addBtn').onclick=()=>{template=null;setMode(mode==='add'?null:'add');};
   if(isStaff()){
-    $('#addBtn').onclick=()=>{template=null;setMode(mode==='add'?null:'add');};
     const drawMem=()=>{const on=lsGet('pml-prefill',true);$('#memBtn').classList.toggle('on',on);$('#memState').textContent=on?'ON':'OFF';};
     $('#memBtn').onclick=()=>{const on=!lsGet('pml-prefill',true);lsSet('pml-prefill',on);drawMem();toast(on?'New snags will copy your last snag':'New snags start blank');};
     drawMem();
@@ -1425,6 +1489,18 @@ async function viewDrawing(jobId,dwgId,snagId){
         patch(sn,o);
       }
       setMode(null);renderPins();toast('Pin moved'+(area?` — ${area.name}`:''));return;
+    }
+    if(isClient()){
+      // Clients fill in where and what; PML picks the trade, contractor and due date afterwards.
+      const ref=doc(collection(db,'jobs',jobId,'snags'));
+      const data={no:Math.max(0,...snagsOf(jobId).map(z=>z.no||0))+1,drawingId:d.id,x,y,status:'open',priority:'Medium',location:area?.name||'',desc:'',due:'',
+        tradeId:'',tradeName:'',tradeColor:'',type:'',contractorId:'',contractorName:'',raisedByClient:true,
+        createdAt:Date.now(),createdBy:ME.email,createdByName:ME.name||ME.email,updatedAt:Date.now(),updatedBy:ME.email,
+        history:[{at:Date.now(),by:ME.name||ME.email,role:'client',action:'Raised by client'}],comments:[]};
+      w(setDoc(ref,data));
+      SNAGS[jobId]=[...snagsOf(jobId),{id:ref.id,jobId,_pending:true,...data}];
+      setMode(null);select(ref.id);toast('Snag added — now describe it and add a photo');
+      return;
     }
     const L=template||(lsGet('pml-prefill',true)?lsGet('pml-last',null):null)||{};
     const cons=j().contractors||[];
@@ -1495,10 +1571,10 @@ async function viewDrawing(jobId,dwgId,snagId){
     const sn=findSnag(jobId,sel);if(!sn)return;
     for(const kind of ['issue','fix']){
       const host=drawer.querySelector(`[data-photos=${kind}]`);if(!host)continue;
-      const canAdd=isStaff()||(kind==='fix'&&sn.status!=='closed');
+      const canAdd=isStaff()||(isCon()&&kind==='fix'&&sn.status!=='closed')||(isClient()&&kind==='issue'&&clientOwns(sn));
       host.innerHTML='';
       photos.filter(p=>(p.kind||'issue')===kind).forEach(p=>{
-        const canDel=isStaff()||(p.byEmail===ME.email&&sn.status!=='closed');
+        const canDel=isStaff()||(p.byEmail===ME.email&&(isClient()?clientOwns(sn):sn.status!=='closed'));
         const el=document.createElement('div');el.className='ph';el.style.backgroundImage=`url("${p.d}")`;el.title=`${p.byName||''} · ${fmtWhen(p.at)}`;
         el.innerHTML=canDel?'<button title="Remove">×</button>':'';
         el.onclick=async e=>{if(e.target.tagName==='BUTTON'){if(await confirmBox('Remove photo','Remove this photo?','Remove'))w(deleteDoc(doc(db,'jobs',jobId,'snags',sn.id,'photos',p.id)));}else lightbox(p.d);};
@@ -1517,6 +1593,22 @@ async function viewDrawing(jobId,dwgId,snagId){
     const h=[...(sn.history||[])].reverse();
     return h.length?`<div class="section-t">History</div><div class="timeline">${h.map(e=>`<div class="tl"><b>${esc(e.action)}</b>${e.status?' → '+esc(ST[e.status]?.label||e.status):''} <span class="when">· ${esc(e.by||'')} · ${fmtWhen(e.at)}</span>${e.note?`<div class="note">${esc(e.note)}</div>`:''}</div>`).join('')}</div>`:'';
   }
+  // Comments: everyone who can see the snag (PML, the contractor and the client) can read and add them.
+  function commentsHTML(sn){
+    const list=sn.comments||[];
+    return`<div class="section-t">Comments${list.length?` (${list.length})`:''}</div>
+      <div class="comments">${list.map(c=>`<div class="cm${c.byEmail===ME.email?' me':''}"><div class="who2"><b>${esc(c.by||c.byEmail||'')}</b> · ${esc(ROLES[c.role]||'')} · ${fmtWhen(c.at)}</div><div class="txt">${esc(c.text)}</div></div>`).join('')||'<span class="meta">No comments yet.</span>'}
+        <div class="cm-add"><textarea id="cmText" placeholder="Add a comment…" maxlength="2000"></textarea><button class="btn btn-y btn-sm" id="cmPost">Post</button></div></div>`;
+  }
+  function wireComments(sn){
+    const t=$('#cmText'),b=$('#cmPost');if(!t||!b)return;
+    b.onclick=()=>{
+      const text=t.value.trim();if(!text){t.focus();return;}
+      const cur=findSnag(jobId,sn.id)||sn;
+      patch(sn,{comments:[...(cur.comments||[]),{id:uid()+Date.now().toString(36),text,at:Date.now(),by:ME.name||ME.email,byEmail:ME.email,role:ME.role}]});
+      t.value='';openDrawer();toast('Comment added');
+    };
+  }
   const addHistory=(sn,entry)=>[...((findSnag(jobId,sn.id)||sn).history||[]),{at:Date.now(),by:ME.name||ME.email,role:ME.role,...entry}];
   let scrollKeep=0;
   function openDrawer(isRefresh){
@@ -1525,7 +1617,8 @@ async function viewDrawing(jobId,dwgId,snagId){
     if(isRefresh&&drawer.contains(document.activeElement)&&document.activeElement.matches('input,textarea'))return;
     scrollKeep=isRefresh?(drawer.querySelector('.dbody')?.scrollTop||0):0;
     drawer.hidden=false;
-    (isStaff()?staffDrawer:contractorDrawer)(sn);
+    (isStaff()?staffDrawer:isClient()?clientDrawer:contractorDrawer)(sn);
+    wireComments(sn);
     if(scrollKeep)drawer.querySelector('.dbody').scrollTop=scrollKeep;
     watchPhotos(sn);drawPhotos();
     if(wasHidden)setTimeout(()=>{positionPins();ensureVisible(sn);});
@@ -1546,6 +1639,7 @@ async function viewDrawing(jobId,dwgId,snagId){
         ${sn.status==='ready'?`<div class="box blue"><div class="t">🔔 ${esc(sn.contractorName||'Contractor')} says this is done</div>${sn.contractorNote?`<div class="q">${esc(sn.contractorNote)}</div>`:''}${lastDone?`<div class="meta">${esc(lastDone.by)} · ${fmtWhen(lastDone.at)}</div>`:''}
           <div class="row"><button class="btn btn-green btn-sm" id="signoff">✓ Sign off</button><button class="btn btn-danger btn-sm" id="sendback">↩ Not done — send back</button></div></div>`:''}
         ${sn.status==='closed'?`<div class="box green"><div class="t">✓ Signed off by ${esc(sn.signedOffByName||'PML')} · ${fmtDate(sn.signedOffAt)}</div>${sn.contractorNote?`<div class="q">${esc(sn.contractorNote)}</div>`:''}<div><button class="btn btn-o btn-sm" id="reopen">Reopen</button></div></div>`:''}
+        ${sn.raisedByClient&&!sn.contractorId?`<div class="box" style="background:#f5f3ff;border:1px solid #ddd6fe"><div class="t">👤 Raised by client ${esc(sn.createdByName||'')}</div><div class="meta">Choose the trade, defect, contractor and due date below. The client can change their description and pin until you assign a contractor.</div></div>`:''}
         ${sn.status!=='ready'&&sn.status!=='closed'&&sn.contractorNote?`<div class="box grey"><div class="t">Contractor's notes</div><div class="q">${esc(sn.contractorNote)}</div></div>`:''}
         <div class="f"><label>Status</label><div class="seg" id="seg">${STATUSES.map(s=>`<button data-k="${s.k}" class="${s.k===sn.status?'on':''}" style="${s.k===sn.status?`background:${s.c}`:''}">${s.label}</button>`).join('')}</div></div>
         <div class="f"><label>Trade</label><select id="i-trade"><option value="">— Choose trade —</option>${LIB.trades.map(t=>`<option value="${t.id}" ${t.id===sn.tradeId?'selected':''}>${esc(t.name)}</option>`).join('')}${sn.tradeId&&!tr?`<option selected value="${esc(sn.tradeId)}">${esc(sn.tradeName)}</option>`:''}</select></div>
@@ -1560,6 +1654,7 @@ async function viewDrawing(jobId,dwgId,snagId){
         <div class="f"><label>Description</label><textarea id="i-desc" placeholder="What's wrong and what needs doing">${esc(sn.desc)}</textarea></div>
         <div class="f"><label>Snag photos</label><div class="photos" data-photos="issue"></div></div>
         <div class="f"><label>Contractor's completion photos</label><div class="photos" data-photos="fix"></div></div>
+        ${commentsHTML(sn)}
         ${historyHTML(sn)}
         <div class="meta">Raised by ${esc(sn.createdByName||sn.createdBy||'')} · ${fmtDate(sn.createdAt)} · ${esc(d.name)}</div>
       </div>
@@ -1635,6 +1730,7 @@ async function viewDrawing(jobId,dwgId,snagId){
           `<div class="row"><button class="btn ${sn.status==='progress'?'on':'btn-o'} btn-sm" id="prog">🔧 ${sn.status==='progress'?'In progress':'Mark in progress'}</button></div>`}
           <div class="f"><label>What have you done? ${sn.status==='ready'?'':'(needed to mark completed)'}</label><textarea id="c-note" placeholder="e.g. Wall filled, sanded and 2 coats applied">${esc(sn.contractorNote||'')}</textarea></div>`}
         <div class="f"><label>Photos of completed work</label><div class="photos" data-photos="fix"></div></div>
+        ${commentsHTML(sn)}
         ${historyHTML(sn)}
       </div>
       <div class="dfoot">${closed||sn.status==='ready'?'':'<button class="btn btn-green" id="complete" style="flex:1">✓ Mark as completed</button>'}<button class="btn btn-dark btn-sm" id="done">Close</button></div>`;
@@ -1650,6 +1746,34 @@ async function viewDrawing(jobId,dwgId,snagId){
       patch(sn,{status:'ready',contractorNote:n,history:addHistory(sn,{action:'Marked completed',status:'ready',note:n})});
       renderPins();openDrawer();toast('Sent to PML for sign-off');
     });
+  }
+  function clientDrawer(sn){
+    const own=clientOwns(sn);
+    drawer.innerHTML=`
+      <div class="dhead"><span class="no">${snagNo(sn.no)}</span>${statusPill(sn.status)}${sn._pending?'<span class="pend">⏳</span>':''}<span class="spacer"></span><button class="x" id="dclose" title="Close">✕</button></div>
+      <div class="dbody">
+        ${own?`<div class="box" style="background:#f5f3ff;border:1px solid #ddd6fe"><div class="t">Your snag</div><div class="meta">Describe it and add a photo. You can change it until PML assigns it to a contractor.</div></div>`:''}
+        <div class="kvs"><b>Defect</b><span><b style="color:var(--ink);font-size:14px">${esc(sn.type||(sn.raisedByClient?'Raised by client':'—'))}</b></span><b>Trade</b><span>${esc(sn.tradeName||'—')}</span><b>Floor / level</b><span>${esc(d.level||'—')}</span>
+          ${own?'':`<b>Location</b><span>${esc(sn.location||'—')}</span>`}<b>Priority</b><span>${esc(sn.priority||'—')}</span><b>Due</b><span>${fmtDate(sn.due)}</span><b>Contractor</b><span>${esc(sn.contractorName||'Not assigned yet')}</span>
+          ${sn.status==='closed'?`<b>Signed off</b><span>${fmtDate(sn.signedOffAt)}</span>`:''}</div>
+        ${own?`<div class="f"><label>Location / room</label><input id="i-loc" value="${esc(sn.location)}" placeholder="e.g. APT 01.04 – Bathroom"></div>
+          <div class="f"><label>Description</label><textarea id="i-desc" placeholder="What's wrong">${esc(sn.desc)}</textarea></div>`
+          :sn.desc?`<div class="box grey"><div class="t">Description</div><div class="q">${esc(sn.desc)}</div></div>`:''}
+        <div class="f"><label>Snag photos</label><div class="photos" data-photos="issue"></div></div>
+        ${sn.status==='ready'||sn.status==='closed'?'<div class="f"><label>Photos of completed work</label><div class="photos" data-photos="fix"></div></div>':''}
+        ${commentsHTML(sn)}
+        ${historyHTML(sn)}
+        <div class="meta">Raised by ${esc(sn.createdByName||sn.createdBy||'')} · ${fmtDate(sn.createdAt)} · ${esc(d.name)}</div>
+      </div>
+      <div class="dfoot">${own?'<button class="btn btn-o btn-sm" id="mv">✥ Move</button><span class="spacer"></span><button class="btn btn-danger btn-sm" id="del">Delete</button>':'<span class="spacer"></span>'}<button class="btn btn-dark btn-sm" id="done">Close</button></div>`;
+    $('#dclose').onclick=$('#done').onclick=closeSel;
+    if(!own)return;
+    $('#i-loc').oninput=e=>debounced(sn,'location',e.target.value);
+    $('#i-desc').oninput=e=>debounced(sn,'desc',e.target.value);
+    $('#mv').onclick=()=>{setMode('move');if(innerWidth<760)drawer.hidden=true;};
+    $('#del').onclick=async()=>{if(await confirmBox('Delete snag',`Delete ${snagNo(sn.no)}? This can't be undone.`)){
+      const b=writeBatch(db);photos.filter(p=>p.byEmail===ME.email).forEach(p=>b.delete(doc(db,'jobs',jobId,'snags',sn.id,'photos',p.id)));b.delete(snagRef(jobId,sn.id));w(b.commit());
+      SNAGS[jobId]=snagsOf(jobId).filter(z=>z.id!==sn.id);closeSel();}};
   }
   function ensureVisible(sn){
     const r=viewer.getBoundingClientRect(),px=tx+sn.x*W*s,py=ty+sn.y*H*s;
