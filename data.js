@@ -352,6 +352,11 @@ export async function sendInvite(email) { return (await api('POST', '/invite', {
 // Emails one contractor on a job their outstanding snags now. → {status: 'sent'|'nothing-outstanding'|'no-email-address', to, count}
 export const sendReminder = (job, contractor) => api('POST', '/reminders/send', { job, contractor });
 
+// Site attendance (needs signal; not kept on the device). See lib/app.js → /visits.
+export const siteVisits = (job, from, to) => api('GET', `/visits?job=${encodeURIComponent(job)}&from=${from}&to=${to}`).then(r => r.visits);
+export const siteVisitsNow = () => api('GET', '/visits/now').then(r => r.visits);
+export const siteVisitAction = (what, job, id, extra = {}) => api('POST', '/visits/' + what, { job, id, ...extra });
+
 // One-off: copies a Firebase export (made by migrate/export-firestore.mjs) into the database.
 // Goes straight to the server in batches (needs signal), then syncs.
 export async function importDocs(docs, onProgress = () => {}) {

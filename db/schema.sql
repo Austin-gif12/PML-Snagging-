@@ -59,3 +59,16 @@ create index if not exists jobs_contractors on jobs using gin (contractor_emails
 create index if not exists drawings_rev on drawings (rev);
 create index if not exists snags_rev on snags (rev);
 create index if not exists snags_contractors on snags using gin (contractor_emails);
+
+-- Site attendance (the QR code on each job). Run this part on its own if the other tables already exist.
+create table if not exists site_visits (
+  job_id text not null,
+  id text not null,
+  in_at bigint not null default 0,
+  out_at bigint,
+  data jsonb not null default '{}',
+  primary key (job_id, id));
+create index if not exists site_visits_job_in on site_visits (job_id, in_at);
+create index if not exists site_visits_phone on site_visits (job_id, (data->>'phoneDigits'));
+create index if not exists site_visits_open on site_visits (out_at) where out_at is null;
+create index if not exists jobs_site_code on jobs ((data->>'siteCode'));

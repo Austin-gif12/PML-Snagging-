@@ -35,6 +35,7 @@ Phone / PC (index.html + data.js)        Vercel /api (api/index.js + lib/)      
 | File | What it is |
 |---|---|
 | `index.html` | The app |
+| `attendance.html` | The Site Attendance page each job's QR code opens (`/a/{code}`, no login) |
 | `data.js` | On-device copy, upload queue and sync with the API |
 | `workos-auth.js` | Sign-in with WorkOS AuthKit |
 | `config.js` | API address and owner email (the WorkOS Client ID comes from Vercel) |
@@ -109,6 +110,18 @@ People keep their roles, but each needs a WorkOS login with the **same email**: 
 - **PML staff:** **Users & permissions → Add user**. They get a WorkOS invitation email.
 - **Contractors:** open the job → **Contractors** tab → add the contractor with each person's **email** → **Give app access**. They then only see their own snags.
 - Invites often land in junk. **Resend invite** sends it again, or they can tap *First time? Create your login* with that email. Someone who signs up without being given access sees "No access yet".
+
+## Site attendance (QR code sign in / out)
+Each job can have its own **Site Attendance** QR code. Staff: open the job → **🪪 Site attendance** → **Set up site attendance**, then **Print QR poster** for the site entrance. The QR opens `/a/{code}` (`attendance.html`), a separate page in PML Site Attendance colours that needs **no login**:
+
+- **Been here before** (returning personnel): mobile number only; their details are copied from their last sign in on that job.
+- **First time on this site** (new personnel): name, company, trade, mobile, emergency contact, skills card (CSCS etc.), optional medical info, fit to work and site rules. They show as **Needs induction** until PML taps **✓ Inducted**.
+- **Visitor**: who they're seeing, reason, vehicle reg.
+- **Sign out**: one tap on the phone they signed in with, or by mobile number on any phone.
+
+In the app: a live **On site now** list, **🔥 Fire roll call** (prints in one tap), **Didn't sign out** (signed in on an earlier day, never signed out), and an **Attendance register** by date with **Excel / CSV** export and print. **Menu → 🪪 Site attendance** shows who's on site across every job. Each job can set its site manager contact, fire assembly point and site rules (shown on the sign in page and poster). **New QR code** stops the old poster working; **Turn off** closes sign in for that job.
+
+The register is kept in its own `site_visits` table and is read live (it needs signal, and isn't kept on staff devices). The API creates the table itself if its login is allowed to; otherwise run the last part of `db/schema.sql` once in PlanetScale. `/api` says if it's missing.
 
 ## Offline
 - Sign in once on each device with signal. After that the app opens and works with no signal: add snags, sign off, take photos.

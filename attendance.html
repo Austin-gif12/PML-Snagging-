@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E0602">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/assets/icon-180.png">
+<link rel="apple-touch-icon" href="/assets/icon-180.png">
+<title>Site Attendance · PML</title>
+<!--
+  PML Site Attendance: the page each job's QR code opens (/a/{code}, see vercel.json).
+  No login: the code in the address is the key to that one job. Talks to the same API as the snagging app
+  (lib/app.js → /api/site/{code}…). What someone signs in with is kept on their phone, so next time they
+  sign in or out with one tap.
+-->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Montserrat:wght@600;700;800&display=swap');
+:root{--ff:'DM Sans','Segoe UI',sans-serif;--ffh:'Montserrat','DM Sans',sans-serif;--ffm:'DM Mono',monospace;
+  --black:#0E0602;--yellow:#FCBF2A;--yellow-soft:#FFF6DC;--bg:#F5F3EE;--ink:#1c1410;--muted:#6f675e;--border:#e4dfd5;
+  --red:#C0392B;--green:#15803d;--blue:#2563eb;--purple:#6d28d9}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--ff);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.top{background:var(--black);background-image:radial-gradient(500px 220px at 90% 0,rgba(252,191,42,.22),transparent);color:#fff;padding:16px 18px 18px;padding-top:calc(16px + env(safe-area-inset-top,0px));border-bottom:4px solid var(--yellow)}
+.top .bar{display:flex;align-items:center;gap:12px;max-width:560px;margin:0 auto}
+.top img{height:24px}
+.top .k{font:800 11px var(--ffh);letter-spacing:2.6px;text-transform:uppercase;color:var(--yellow);border-left:1px solid #4a3f36;padding-left:12px}
+.top .clock{margin-left:auto;font:700 13px var(--ffm);color:#d8cfc3}
+.job{max-width:560px;margin:14px auto 0}
+.job .r{font:500 11.5px var(--ffm);color:var(--yellow)}
+.job h1{font:800 21px/1.2 var(--ffh);margin:3px 0 2px}
+.job .a{font-size:13px;color:#c9c0b4}
+main{max-width:560px;margin:0 auto;padding:16px 16px calc(40px + env(safe-area-inset-bottom,0px))}
+.hello{font:800 17px var(--ffh);margin:4px 2px 12px}
+.opt{width:100%;display:flex;align-items:center;gap:14px;text-align:left;background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:10px;cursor:pointer;box-shadow:0 1px 2px rgba(14,6,2,.05),0 6px 18px rgba(14,6,2,.05);-webkit-tap-highlight-color:transparent}
+.opt:active{transform:scale(.99)}
+.opt .i{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+.opt .tx{flex:1;min-width:0}
+.opt b{display:block;font:800 16px var(--ffh);color:var(--ink)}
+.opt .tx span{display:block;font-size:13px;color:var(--muted);margin-top:2px;line-height:1.35}
+.opt .go{margin-left:auto;font-size:22px;color:#c4bcb0}
+.opt.ret{border-left:6px solid var(--yellow)} .opt.ret .i{background:var(--yellow-soft)}
+.opt.new{border-left:6px solid var(--blue)} .opt.new .i{background:#eff6ff}
+.opt.vis{border-left:6px solid var(--purple)} .opt.vis .i{background:#f5f3ff}
+.outlink{width:100%;margin-top:6px;background:var(--black);color:#fff;border:none;border-radius:14px;padding:15px;font:800 15px var(--ffh);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.card{background:#fff;border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(14,6,2,.05),0 6px 18px rgba(14,6,2,.05);margin-bottom:12px}
+.card h2{font:800 18px var(--ffh);margin-bottom:4px}
+.card .sub{font-size:13px;color:var(--muted);margin-bottom:14px}
+.sec{font:800 11.5px var(--ffh);text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--border)}
+.sec:first-of-type{border-top:none;padding-top:0;margin-top:4px}
+.f{margin-bottom:12px}
+.f label{display:block;font-size:12px;font-weight:700;margin-bottom:5px}
+.f label i{font-style:normal;font-weight:500;color:var(--muted)}
+.f input,.f select,.f textarea{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:12px 13px;background:#fff;font-size:16px;min-height:50px}
+.f textarea{min-height:70px;resize:vertical}
+.f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:var(--yellow);box-shadow:0 0 0 3px rgba(252,191,42,.3)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rules{background:#faf8f4;border:1px solid var(--border);border-left:4px solid var(--yellow);border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.5}
+.rules li{margin-left:18px;margin-bottom:4px}
+.tick{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1.5px solid var(--border);border-radius:12px;margin-top:10px;cursor:pointer;font-size:14px;line-height:1.4}
+.tick input{width:24px;height:24px;flex-shrink:0;accent-color:var(--green);margin-top:1px}
+.tick.on{border-color:var(--green);background:#f0fdf4}
+.btn{width:100%;border:none;border-radius:14px;padding:16px;font:800 16px var(--ffh);cursor:pointer;margin-top:16px;min-height:56px}
+.btn:disabled{opacity:.5}
+.btn-y{background:var(--yellow);color:var(--black)}
+.btn-d{background:var(--black);color:#fff}
+.btn-o{background:#fff;border:1.5px solid var(--border);color:var(--ink)}
+.back{background:none;border:none;color:var(--muted);font-weight:700;font-size:14px;padding:6px 2px 12px;cursor:pointer}
+.err{background:#fdecea;color:var(--red);border-radius:12px;padding:11px 13px;font-size:14px;margin-top:12px}
+.found{display:flex;align-items:center;gap:12px;background:var(--yellow-soft);border:1px solid #f5dc97;border-radius:14px;padding:14px;margin:4px 0 6px}
+.found .av{width:46px;height:46px;border-radius:50%;background:var(--black);color:var(--yellow);font:800 18px var(--ffh);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.found b{display:block;font:800 17px var(--ffh)}
+.found span{font-size:13px;color:var(--muted)}
+.state{text-align:center;padding:26px 18px}
+.state .big{width:84px;height:84px;border-radius:50%;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;font-size:42px;color:#fff}
+.state .big.in{background:var(--green)} .state .big.out{background:var(--black);color:var(--yellow)}
+.state h2{font:800 24px var(--ffh)}
+.state .nm{font-size:15px;margin-top:4px}
+.state .t{display:flex;justify-content:center;gap:22px;margin:16px 0 4px}
+.state .t div b{display:block;font:800 24px var(--ffh)}
+.state .t div span{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700}
+.notice{border-radius:12px;padding:12px 14px;font-size:14px;text-align:left;margin-top:12px;line-height:1.45}
+.notice.warn{background:#fef3c7;border:1px solid #fde68a}
+.notice.fire{background:#fef2f2;border:1px solid #fecaca}
+.notice.info{background:#f7f5f0;border:1px solid var(--border)}
+.notice b{font-family:var(--ffh)}
+.small{font-size:12.5px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5}
+.small button{background:none;border:none;text-decoration:underline;color:var(--muted);cursor:pointer;font-size:12.5px}
+.foot{text-align:center;color:#8f8579;font-size:12px;margin-top:22px}
+.spin{width:34px;height:34px;border:4px solid var(--border);border-top-color:var(--yellow);border-radius:50%;animation:s 1s linear infinite;margin:40px auto}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar"><img src="/assets/logo-light.png" alt="PML"><span class="k">Site Attendance</span><span class="clock" id="clock"></span></div>
+  <div class="job" id="job" hidden><div class="r" id="jRef"></div><h1 id="jName"></h1><div class="a" id="jAddr"></div></div>
+</header>
+<main id="app"><div class="spin"></div></main>
+
+<script>
+const API = '/api';
+const code = (location.pathname.match(/\/a\/([A-Za-z0-9]+)/) || [])[1] || new URLSearchParams(location.search).get('c') || '';
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtTime = v => new Date(v).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+const fmtDur = ms => { const m = Math.max(1, Math.round(ms / 6e4)); return m < 60 ? m + ' min' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; };
+const STILL_HERE = 16 * 36e5;
+const store = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } },
+  set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const VISIT_KEY = 'pml-att-visit:' + code;   // this phone's sign in on this job
+const ME_KEY = 'pml-att-me';                  // details typed last time, to fill in the form on other PML sites
+let SITE = null;
+
+setInterval(tick, 1000); tick();
+function tick() { $('#clock').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); document.querySelectorAll('[data-since]').forEach(e => e.textContent = fmtDur(Date.now() - Number(e.dataset.since))); }
+
+async function api(path, body) {
+  let r;
+  try { r = await fetch(API + '/site/' + code + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); }
+  catch { throw new Error('No signal. Move somewhere with signal and try again, or sign in on the paper sheet in the site office.'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error || 'Something went wrong (' + r.status + '). Please try again.'), { code: j.code });
+  return j;
+}
+const show = html => { $('#app').innerHTML = html; window.scrollTo(0, 0); };
+function busy(btn, on, label) { btn.disabled = on; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label || 'One moment…'; } else if (btn.dataset.l) btn.textContent = btn.dataset.l; }
+function err(where, e) { const old = $(where + ' .err'); old?.remove(); $(where).insertAdjacentHTML('beforeend', `<div class="err">${esc(e.message || e)}</div>`); $(where + ' .err').scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
+const rulesHTML = () => {
+  const lines = String(SITE.rules || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+  return lines.length ? `<div class="rules"><ul>${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul></div>` : '';
+};
+const fireHTML = () => SITE.assembly ? `<div class="notice fire">🔥 <b>Fire assembly point:</b> ${esc(SITE.assembly)}</div>` : '';
+const contactHTML = () => SITE.contact ? `<div class="notice info">📞 <b>Site manager:</b> ${esc(SITE.contact)}</div>` : '';
+function wireTicks() { document.querySelectorAll('.tick input').forEach(i => { const l = i.closest('.tick'); const f = () => l.classList.toggle('on', i.checked); i.onchange = f; f(); }); }
+
+/* ── start ── */
+(async () => {
+  if (!code) return show(`<div class="card state"><h2>QR code not recognised</h2><p class="small">Please scan the Site Attendance QR code on the poster at the site entrance.</p></div>`);
+  try { SITE = (await api('')).site; }
+  catch (e) { return show(`<div class="card state"><div class="big out">!</div><h2>Can't open site attendance</h2><p class="small" style="font-size:14px">${esc(e.message)}</p></div>`); }
+  $('#job').hidden = false; $('#jRef').textContent = SITE.ref; $('#jName').textContent = SITE.name; $('#jAddr').textContent = SITE.address;
+  document.title = 'Site Attendance · ' + SITE.name;
+  home();
+})();
+
+function home() {
+  const v = store.get(VISIT_KEY);
+  if (v && !v.outAt && Date.now() - v.inAt < STILL_HERE) return signedIn(v);
+  if (v) store.set(VISIT_KEY, null);
+  show(`<div class="hello">${greet()}. How are you signing in?</div>
+    <button class="opt ret" id="oRet"><span class="i">👷</span><span class="tx"><b>Been here before</b><span>Personnel who've signed in on this site already. Just your mobile number.</span></span><span class="go">›</span></button>
+    <button class="opt new" id="oNew"><span class="i">🆕</span><span class="tx"><b>First time on this site</b><span>New personnel. Your details, emergency contact and skills card. About 2 minutes.</span></span><span class="go">›</span></button>
+    <button class="opt vis" id="oVis"><span class="i">👋</span><span class="tx"><b>Visitor</b><span>Meetings, inspections, deliveries and anyone not working on site.</span></span><span class="go">›</span></button>
+    <button class="outlink" id="oOut">🚪 Leaving site? Sign out</button>
+    ${fireHTML()}
+    <div class="foot">PML Fire Protection · Building Confidence.</div>`);
+  $('#oRet').onclick = returning; $('#oNew').onclick = () => newPerson(); $('#oVis').onclick = visitor; $('#oOut').onclick = signOutOther;
+}
+
+/* ── returning personnel: mobile number, then confirm ── */
+function returning(prefill) {
+  const me = store.get(ME_KEY);
+  show(`<button class="back" id="bk">‹ Back</button><div class="card" id="c"><h2>👷 Welcome back</h2><div class="sub">Put the mobile number you signed in with last time.</div>
+    <div class="f"><label>Mobile number</label><input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(typeof prefill === 'string' ? prefill : me?.phone || '')}" placeholder="07…"></div>
+    <button class="btn btn-y" id="go">Continue</button></div>`);
+  $('#bk').onclick = home;
+  const go = async () => {
+    const phone = $('#ph').value, b = $('#go'); busy(b, true, 'Finding you…');
+    try {
+      const r = await api('/lookup', { phone });
+      if (!r.person) {
+        busy(b, false);
+        $('#c').insertAdjacentHTML('beforeend', `<div class="notice warn" style="margin-top:14px"><b>We don't have you on this site yet.</b> If it's your first time here, sign in as new personnel. It only takes a couple of minutes, and next time it's just your number.</div><button class="btn btn-d" id="toNew">Sign in as new personnel</button>`);
+        $('#go').hidden = true; $('#toNew').onclick = () => newPerson({ phone }); return;
+      }
+      confirmReturning(phone, r.person);
+    } catch (e) { busy(b, false); err('#c', e); }
+  };
+  $('#go').onclick = go; $('#ph').onkeydown = e => e.key === 'Enter' && go(); $('#ph').focus();
+}
+function confirmReturning(phone, p) {
+  show(`<button class="back" id="bk">‹ Not me</button><div class="card" id="c">
+    <div class="found"><div class="av">${esc(p.name[0] || '?')}</div><div><b>${esc(p.name)}</b><span>${esc(p.company)}</span></div></div>
+    <div class="sec">Before you start</div>
+    ${rulesHTML()}
+    <label class="tick"><input type="checkbox" id="fit"><span>I'm fit to work today: not unwell, injured, or under the influence of alcohol or drugs.</span></label>
+    <label class="tick"><input type="checkbox" id="ok"><span>I'll follow the site rules and wear the right PPE.</span></label>
+    <button class="btn btn-y" id="go">✓ Sign in</button></div>`);
+  wireTicks();
+  $('#bk').onclick = () => returning(phone);
+  $('#go').onclick = async () => {
+    const b = $('#go'); busy(b, true, 'Signing you in…');
+    try { const r = await api('/in', { kind: 'returning', phone, fit: $('#fit').checked, agreed: $('#ok').checked }); store.set(ME_KEY, { ...store.get(ME_KEY), phone }); done(r); }
+    catch (e) { busy(b, false); err('#c', e); }
+  };
+}
+
+/* ── new personnel ── */
+function newPerson(pre = {}) {
+  const me = { ...store.get(ME_KEY), ...pre };
+  const v = k => esc(me[k] || '');
+  show(`<button class="back" id="bk">‹ Back</button><div class="card" id="c"><h2>🆕 First time on this site</h2><div class="sub">You only fill this in once for this site. Next time it's just your mobile number.</div>
+    <div class="sec">About you</div>
+    <div class="f"><label>Full name</label><input name="name" autocomplete="name" value="${v('name')}" placeholder="First and last name"></div>
+    <div class="f"><label>Company</label><input name="company" autocomplete="organization" value="${v('company')}" placeholder="Who you work for"></div>
+    <div class="f"><label>Trade / role</label><input name="trade" value="${v('trade')}" placeholder="e.g. Fire stopping operative" list="trades"></div>
+    <datalist id="trades">${['Fire stopping operative', 'Electrician', 'Plumber / mechanical', 'Dryliner', 'Carpenter / joiner', 'Painter & decorator', 'Bricklayer', 'Groundworker', 'Roofer', 'Labourer', 'Supervisor / foreman', 'Site manager', 'Surveyor'].map(t => `<option value="${t}">`).join('')}</datalist>
+    <div class="f"><label>Mobile number</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" value="${v('phone')}" placeholder="07…"></div>
+    <div class="sec">Emergency contact</div>
+    <div class="f2"><div class="f"><label>Name</label><input name="emergencyName" value="${v('emergencyName')}" placeholder="e.g. partner"></div>
+      <div class="f"><label>Number</label><input name="emergencyPhone" type="tel" inputmode="tel" value="${v('emergencyPhone')}"></div></div>
+    <div class="sec">Skills card <i style="font-style:normal;text-transform:none;letter-spacing:0;font-weight:500">(if you have one)</i></div>
+    <div class="f"><label>Card type</label><select name="cscsType">${['', 'CSCS', 'CPCS', 'NPORS', 'ECS (JIB)', 'JIB PMES', 'SKILLcard', 'CISRS', 'IPAF', 'PASMA', 'Other', 'None'].map(t => `<option ${me.cscsType === t ? 'selected' : ''} value="${t}">${t || 'Choose…'}</option>`).join('')}</select></div>
+    <div class="f2"><div class="f"><label>Card number</label><input name="cscsNo" value="${v('cscsNo')}"></div>
+      <div class="f"><label>Expiry</label><input name="cscsExpiry" type="date" value="${v('cscsExpiry')}"></div></div>
+    <div class="sec">Health</div>
+    <div class="f"><label>Anything the first aider should know? <i>(optional)</i></label><textarea name="medical" placeholder="e.g. allergies, diabetic, epilepsy">${v('medical')}</textarea></div>
+    <div class="sec">Site rules</div>
+    ${rulesHTML()}
+    <label class="tick"><input type="checkbox" id="fit"><span>I'm fit to work today: not unwell, injured, or under the influence of alcohol or drugs.</span></label>
+    <label class="tick"><input type="checkbox" id="ok"><span>I've read the site rules, I'll follow them and wear the right PPE, and I won't start work until I've had my site induction.</span></label>
+    <button class="btn btn-y" id="go">✓ Sign in</button>
+    <p class="small">Your details are only used by PML for site safety and attendance records.</p></div>`);
+  wireTicks();
+  $('#bk').onclick = home;
+  $('#go').onclick = async () => {
+    const d = {}; document.querySelectorAll('#c [name]').forEach(i => d[i.name] = i.value.trim());
+    const b = $('#go'); busy(b, true, 'Signing you in…');
+    try {
+      const r = await api('/in', { kind: 'new', ...d, fit: $('#fit').checked, agreed: $('#ok').checked });
+      const { medical, ...keep } = d; store.set(ME_KEY, keep); // handy on the next PML site; health info isn't kept on the phone
+      done(r);
+    } catch (e) { busy(b, false); err('#c', e); }
+  };
+}
+
+/* ── visitor ── */
+function visitor() {
+  const me = store.get(ME_KEY) || {};
+  show(`<button class="back" id="bk">‹ Back</button><div class="card" id="c"><h2>👋 Visitor</h2><div class="sub">Sign in so we know you're on site if there's an emergency.</div>
+    <div class="f"><label>Full name</label><input name="name" autocomplete="name" value="${esc(me.name || '')}" placeholder="First and last name"></div>
+    <div class="f"><label>Company</label><input name="company" autocomplete="organization" value="${esc(me.company || '')}"></div>
+    <div class="f"><label>Here to see</label><input name="visiting" placeholder="Who you're meeting"></div>
+    <div class="f"><label>Reason <i>(optional)</i></label><select name="reason">${['', 'Meeting', 'Inspection / survey', 'Building control', 'Client visit', 'Delivery', 'Collection', 'Other'].map(t => `<option value="${t}">${t || 'Choose…'}</option>`).join('')}</select></div>
+    <div class="f2"><div class="f"><label>Mobile number</label><input name="phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc(me.phone || '')}"></div>
+      <div class="f"><label>Vehicle reg <i>(optional)</i></label><input name="reg" style="text-transform:uppercase"></div></div>
+    ${rulesHTML()}
+    <label class="tick"><input type="checkbox" id="ok"><span>I'll follow the site rules, wear the PPE I'm given, and stay with the person I'm visiting.</span></label>
+    <button class="btn btn-y" id="go">✓ Sign in</button></div>`);
+  wireTicks();
+  $('#bk').onclick = home;
+  $('#go').onclick = async () => {
+    const d = {}; document.querySelectorAll('#c [name]').forEach(i => d[i.name] = i.value.trim());
+    const b = $('#go'); busy(b, true, 'Signing you in…');
+    try { const r = await api('/in', { kind: 'visitor', ...d, agreed: $('#ok').checked }); store.set(ME_KEY, { ...store.get(ME_KEY), name: d.name, company: d.company, phone: d.phone }); done(r); }
+    catch (e) { busy(b, false); err('#c', e); }
+  };
+}
+
+/* ── signed in ── */
+function done(r) { store.set(VISIT_KEY, r.visit); signedIn(r.visit, r.already); }
+function signedIn(v, already) {
+  const vis = v.kind === 'visitor';
+  show(`<div class="card state" id="c"><div class="big in">✓</div><h2>${already ? 'Already signed in' : 'You\'re signed in'}</h2>
+    <div class="nm"><b>${esc(v.name)}</b> · ${esc(v.company)}</div>
+    <div class="t"><div><b>${fmtTime(v.inAt)}</b><span>Signed in</span></div><div><b data-since="${v.inAt}">${fmtDur(Date.now() - v.inAt)}</b><span>On site</span></div></div>
+    ${!vis && !v.inducted ? `<div class="notice warn">⚠️ <b>Site induction needed.</b> Please report to the site manager for your induction before you start work.</div>` : ''}
+    ${vis ? `<div class="notice info">Please wait at the site office for the person you're visiting.</div>` : ''}
+    ${fireHTML()}${contactHTML()}
+    <button class="btn btn-d" id="out">🚪 Sign out</button>
+    <p class="small">Keep this page. When you leave, scan the QR code again or open this page and tap <b>Sign out</b>.<br><button id="other">Sign in someone else on this phone</button></p></div>`);
+  $('#out').onclick = async () => {
+    const b = $('#out'); busy(b, true, 'Signing you out…');
+    try { const r = await api('/out', { id: v.id, key: v.key }); store.set(VISIT_KEY, null); signedOut(r.visit); }
+    catch (e) {
+      busy(b, false);
+      if (e.code === 'not-signed-in') { store.set(VISIT_KEY, null); signedOut({ ...v, outAt: Date.now() }, true); return; }
+      err('#c', e);
+    }
+  };
+  $('#other').onclick = () => { store.set(VISIT_KEY, null); home(); };
+}
+function signedOut(v, unsure) {
+  show(`<div class="card state"><div class="big out">👋</div><h2>${unsure ? 'You\'re not signed in' : 'Signed out'}</h2>
+    <div class="nm"><b>${esc(v.name)}</b></div>
+    ${unsure ? '<p class="small" style="font-size:14px">The site team may have already signed you out.</p>' : `<div class="t"><div><b>${fmtTime(v.outAt)}</b><span>Signed out</span></div><div><b>${fmtDur(v.outAt - v.inAt)}</b><span>On site</span></div></div>`}
+    <p class="small" style="font-size:14px">Thanks, and travel safely.</p>
+    <button class="btn btn-o" id="again">Back to start</button></div>`);
+  $('#again').onclick = home;
+}
+
+/* ── signing out on a different phone ── */
+function signOutOther() {
+  const me = store.get(ME_KEY);
+  show(`<button class="back" id="bk">‹ Back</button><div class="card" id="c"><h2>🚪 Sign out</h2><div class="sub">Put the mobile number you signed in with today.</div>
+    <div class="f"><label>Mobile number</label><input id="ph" type="tel" inputmode="tel" autocomplete="tel" value="${esc(me?.phone || '')}" placeholder="07…"></div>
+    <button class="btn btn-d" id="go">Sign out</button></div>`);
+  $('#bk').onclick = home;
+  const go = async () => {
+    const b = $('#go'); busy(b, true, 'Signing you out…');
+    try { const r = await api('/out', { phone: $('#ph').value }); store.set(VISIT_KEY, null); signedOut(r.visit); }
+    catch (e) { busy(b, false); err('#c', e); }
+  };
+  $('#go').onclick = go; $('#ph').onkeydown = e => e.key === 'Enter' && go(); $('#ph').focus();
+}
+</script>
+</body>
+</html>

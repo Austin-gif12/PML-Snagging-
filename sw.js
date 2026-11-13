@@ -1,7 +1,7 @@
 // Offline support: keeps a copy of the app itself on the device so it opens with no signal.
 // Jobs, snags, drawings and photos are kept separately by data.js (IndexedDB).
 // If you change the app and upload it, bump the version below so every phone picks up the new files.
-const CACHE = 'pml-snagging-v4';
+const CACHE = 'pml-snagging-v5';
 const CORE = [
   './', './index.html', './config.js', './data.js', './workos-auth.js', './manifest.webmanifest',
   './assets/logo-light.png', './assets/logo-dark-print.png', './assets/icon-180.png', './assets/icon-512.png'
@@ -47,6 +47,9 @@ self.addEventListener('fetch', e => {
 
   // App files: try the network briefly (so updates come through), else use the saved copy.
   if (sameOrigin && url.pathname.includes('/api')) return; // the API always goes straight to the network
+  // The Site Attendance page (QR codes) isn't part of the offline app: leave it to the network so it
+  // never replaces the saved copy of the app.
+  if (sameOrigin && (url.pathname.startsWith('/a/') || url.pathname.endsWith('/attendance.html'))) return;
   if (sameOrigin) {
     e.respondWith((async () => {
       const c = await caches.open(CACHE);

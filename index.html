@@ -334,6 +334,68 @@ body.show-report #report{display:block}
 .r-sign div{border-top:1px solid #333;padding-top:4px;font-size:8.5pt;color:#555;margin-top:28px}
 .r-foot{margin-top:12px;font-size:7.5pt;color:#777;display:flex;justify-content:space-between;border-top:1px solid #ddd;padding-top:5px}
 
+/* site attendance */
+.chip.per{background:#e0f2fe;color:#075985}
+.chip.vis{background:#ede9fe;color:#5b21b6}
+.chip.bad{background:#fee2e2;color:#991b1b}
+.att-setup{padding:22px;display:flex;gap:18px;align-items:flex-start;max-width:760px;border-left:5px solid var(--yellow)}
+.att-setup p{font-size:14px;margin:8px 0 12px;line-height:1.5}
+.att-ico{font-size:42px;line-height:1}
+.att-top{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.att-qr{padding:16px;display:flex;gap:16px;align-items:flex-start}
+.qrbox{width:150px;height:150px;flex-shrink:0;border:1px solid var(--border);border-radius:10px;padding:6px;display:flex;align-items:center;justify-content:center;background:#fff}
+.qrbox svg{width:100%;height:100%}
+.att-qr-b{display:flex;flex-direction:column;gap:10px;min-width:0}
+.att-qr-b p{font-size:12.5px;line-height:1.45}
+.att-set{padding:16px;display:flex;flex-direction:column;gap:10px}
+.att-set textarea{min-height:110px;font-size:13px}
+.att-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.att-kpis .card{padding:12px 14px;border-top:4px solid var(--yellow)}
+.att-kpis .card.alert{border-top-color:var(--red);background:#fff7f7}
+.att-kpis b{display:block;font:800 26px var(--ffh)}
+.att-kpis span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700}
+.att-tbl td{vertical-align:top}
+.att-tbl a[href^="tel:"]{white-space:nowrap}
+.att-tbl .chip{font-size:10.5px;padding:2px 7px}
+.att-date{height:34px;border:1.5px solid var(--border);border-radius:8px;padding:0 8px;background:#fff;font-size:12.5px}
+.att-count{font-size:13px;color:var(--muted)}
+.att-count b{font:800 24px var(--ffh);color:var(--ink);margin-right:3px}
+.att-names{display:flex;gap:5px;flex-wrap:wrap}
+.sheet.poster{padding:0;display:flex;flex-direction:column;align-items:center;text-align:center;min-height:297mm}
+.pst-top{background:#0E0602;width:100%;padding:14mm 12mm 10mm;border-bottom:4mm solid #FCBF2A;display:flex;flex-direction:column;align-items:center;gap:5mm}
+.pst-top img{height:16mm}
+.pst-k{font:800 30pt var(--ffh);color:#FCBF2A;letter-spacing:3px;text-transform:uppercase}
+.pst-job{margin-top:9mm}
+.pst-job .r{font-family:var(--ffm);color:#777;font-size:11pt}
+.pst-job h1{font-size:26pt;margin:2mm 10mm}
+.pst-job .a{font-size:12pt;color:#555}
+.pst-qr{width:105mm;height:105mm;margin:8mm auto 4mm;padding:4mm;border:2mm solid #0E0602;border-radius:6mm}
+.pst-qr svg{width:100%;height:100%}
+.pst-cta{font:800 24pt var(--ffh);margin-top:2mm}
+.pst-who{display:flex;gap:12mm;margin:6mm 0;font:700 13pt var(--ffh)}
+.pst-who b{display:block;font-size:22pt}
+.pst-must{font-size:12pt;max-width:150mm;color:#333}
+.pst-info{display:flex;gap:8mm;margin:7mm 0}
+.pst-info div{border:1px solid #ddd;border-left:3mm solid #FCBF2A;padding:3mm 5mm;text-align:left;border-radius:2mm}
+.pst-info span{display:block;font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#777}
+.pst-info b{font-size:13pt}
+.pst-foot{margin-top:auto;width:100%;display:flex;justify-content:space-between;padding:5mm 12mm;font-size:8.5pt;color:#777;border-top:1px solid #ddd}
+@media (max-width:760px){
+  .att-top{grid-template-columns:1fr}
+  .att-qr{flex-direction:column;align-items:center;text-align:center}
+  .att-qr-b .row{justify-content:center}
+  .att-kpis{grid-template-columns:1fr 1fr}
+  .att-tbl .hide-m{display:none}
+  .att-set .f2{grid-template-columns:1fr}
+  .att-tbl thead{display:none}
+  .att-tbl,.att-tbl tbody{display:block}
+  .att-tbl tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:11px 14px;border-bottom:1px solid var(--border)}
+  .att-tbl td{display:block;padding:0;border:none}
+  .att-tbl td:nth-child(1){width:100%}
+  .att-tbl td:last-child{width:100%;text-align:left!important}
+  .att-tbl td:last-child:empty{display:none}
+}
+
 @media print{
   @page{size:A4 portrait;margin:0}
   body{background:#fff}
@@ -371,6 +433,7 @@ body.show-report #report{display:block}
 <script type="module">
 import {
   auth, db, OWNER_EMAILS, onAuthStateChanged, signOut, pendingWrites, sendInvite, sendReminder, importDocs, setSessionRefresher, setRefusedHandler,
+  siteVisits, siteVisitsNow, siteVisitAction,
   collection, doc, query, where, onSnapshot, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch
 } from './data.js';
 import {
@@ -687,6 +750,7 @@ function drawTopbar(){
     const m=document.createElement('div');m.className='menu';
     m.innerHTML=`<div class="mh"><b>${esc(ME.name||'')}</b>${esc(ME.email)} · ${esc(ROLES[ME.role])}</div>
       <a href="#/">${isCon()?'📋 My snags':'🏗 Jobs'}</a>
+      ${isStaff()?'<a href="#/attendance">🪪 Site attendance</a>':''}
       ${isStaff()?'<a href="#/library">⚙ Trades &amp; main contractor list</a>':''}
       ${isAdmin()?'<a href="#/users">👥 Users &amp; permissions</a>':''}
       <button id="mOut">Sign out</button>`;
@@ -706,6 +770,7 @@ function route(){
   const p=location.hash.replace(/^#\/?/,'').split('/').filter(Boolean);
   if(p[0]==='users'&&isAdmin())return viewUsers();
   if(p[0]==='library'&&isStaff())return viewLibrary(p[1]||'trades');
+  if(p[0]==='attendance'&&isStaff())return viewAttendance();
   if(p[0]==='job'){
     const j=job(p[1]);
     if(!j){
@@ -733,7 +798,7 @@ function viewJobs(){
     const ready=JOBS.flatMap(j=>snagsOf(j.id).filter(s=>s.status==='ready').map(s=>({s,j}))).sort((a,b)=>(b.s.updatedAt||0)-(a.s.updatedAt||0));
     const fromClients=JOBS.flatMap(j=>snagsOf(j.id).filter(s=>s.raisedByClient&&!s.contractorId&&s.status==='open').map(s=>({s,j}))).sort((a,b)=>(b.s.createdAt||0)-(a.s.createdAt||0));
     $('#app').innerHTML=`<div class="main">
-      <div class="page-head"><div><h1>Jobs</h1><p class="muted">Welcome back ${esc(ME.name||'')}.${isClient()?' Open a job to see its snags, or to add one on the drawings.':''}</p></div><span class="spacer"></span>${isStaff()?'<button class="btn btn-y" id="newJob">＋ New job</button>':''}</div>
+      <div class="page-head"><div><h1>Jobs</h1><p class="muted">Welcome back ${esc(ME.name||'')}.${isClient()?' Open a job to see its snags, or to add one on the drawings.':''}</p></div><span class="spacer"></span>${isStaff()?'<a class="btn btn-o" href="#/attendance">🪪 Site attendance</a><button class="btn btn-y" id="newJob">＋ New job</button>':''}</div>
       ${isStaff()&&fromClients.length?`<div class="card inbox"><div class="ih"><h2>👤 New from clients — needs a contractor</h2><span class="chip" style="background:#ede9fe;color:#5b21b6">${fromClients.length}</span></div>
         ${fromClients.slice(0,8).map(({s,j})=>`<div class="snag-row" data-go="#/job/${j.id}/drawing/${s.drawingId}/${s.id}"><span class="n">${snagNo(s.no)}</span><div class="b"><b>${esc(s.desc||'Snag')}</b><span class="meta">${esc(s.createdByName||'Client')} · ${esc(j.name)}${s.location?' · '+esc(s.location):''}</span></div>${statusPill(s.status)}</div>`).join('')}
         ${fromClients.length>8?`<div class="meta" style="padding:8px 14px">＋ ${fromClients.length-8} more</div>`:''}</div>`:''}
@@ -780,7 +845,7 @@ function viewJob(id,tab){
   function drawShell(j){
     setCrumbs([['Jobs','#/'],[j.name]]);
     const c=countBy(snagsOf(id));
-    const tabs=isStaff()?[['drawings','📐 Drawings'],['snags','📍 Snag list'],['contractors','🏢 Contractors'],['clients','👤 Clients'],['reports','📄 Reports']]
+    const tabs=isStaff()?[['drawings','📐 Drawings'],['snags','📍 Snag list'],['contractors','🏢 Contractors'],['clients','👤 Clients'],['attendance','🪪 Site attendance'],['reports','📄 Reports']]
       :[['drawings','📐 Drawings'],['snags','📍 Snag list']];
     $('#app').innerHTML=`<div class="main">
       <div class="hero"><div><div class="ref">${esc(j.ref||'')}${j.status==='completed'?' · ✓ COMPLETED':''}</div><h1>${esc(j.name)}</h1><div class="addr">${esc([j.address,j.client].filter(Boolean).join(' · '))}</div></div>
@@ -792,7 +857,7 @@ function viewJob(id,tab){
     $('#doneJob')&&($('#doneJob').onclick=()=>w(updateDoc(doc(db,'jobs',j.id),{status:j.status==='completed'?'active':'completed'})));
     $('#delJob')&&($('#delJob').onclick=()=>deleteJob(j));
     const show=tabs.some(([k])=>k===tab)?tab:'drawings';
-    ({drawings:tabDrawings,snags:tabSnags,contractors:tabContractors,clients:tabClients,reports:tabReports}[show])(j);
+    ({drawings:tabDrawings,snags:tabSnags,contractors:tabContractors,clients:tabClients,attendance:tabAttendance,reports:tabReports}[show])(j);
   }
 }
 async function deleteJob(j){
@@ -1087,6 +1152,214 @@ function tabClients(j){
   };
   draw();
   $('#addCl').onclick=()=>{work.clients.push({id:uid(),name:'',company:'',email:''});save();draw();setTimeout(()=>{const i=[...document.querySelectorAll('#cl input[data-f=name]')].pop();i?.focus();},30);};
+}
+
+/* ═════════════ site attendance (QR code sign in / out) ═════════════ */
+// Each job can have a QR code (job.siteCode) that opens the Site Attendance page (attendance.html, /a/{code}).
+// People sign in and out there without a login; the register lives in its own table and is read from the
+// API here (it needs signal, and isn't kept on the device). See lib/app.js → site attendance.
+const QR_JS='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+let qrLoading=null;
+const loadQR=()=>window.qrcode?Promise.resolve():qrLoading||(qrLoading=new Promise((res,rej)=>{const s=document.createElement('script');s.src=QR_JS;s.onload=res;s.onerror=()=>{qrLoading=null;rej(new Error('The QR code maker needs signal the first time'));};document.head.append(s);}));
+const qrCache={};
+async function qrSvg(text){if(qrCache[text])return qrCache[text];await loadQR();const q=qrcode(0,'M');q.addData(text);q.make();return qrCache[text]=q.createSvgTag({cellSize:4,margin:2,scalable:true});}
+const siteUrl=j=>new URL('a/'+j.siteCode,location.href.split('#')[0].replace(/[^/]*$/,'')).href;
+const newSiteCode=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789';return[...crypto.getRandomValues(new Uint8Array(10))].map(x=>a[x%a.length]).join('');};
+const STILL_HERE=16*36e5; // same as the API: open for longer than this = didn't sign out
+const dayStart=(d=new Date())=>{const x=new Date(d);x.setHours(0,0,0,0);return x.getTime();};
+const ymd=t=>{const d=new Date(t);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const fmtTime=v=>v?new Date(v).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'—';
+const fmtDur=ms=>{if(!(ms>0))return'—';const m=Math.round(ms/6e4);return m<60?m+'m':Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m';};
+const onSiteNow=v=>v.outAt==null&&Date.now()-v.inAt<STILL_HERE;
+const forgotOut=v=>(v.outAt==null&&Date.now()-v.inAt>=STILL_HERE)||v.forgot;
+const kindBadge=v=>v.kind==='visitor'?'<span class="chip vis">Visitor</span>':`<span class="chip per">Personnel</span>${v.firstVisit?' <span class="chip warn">New</span>':''}`;
+const inductBadge=v=>v.kind==='visitor'?'':v.inducted?'<span class="chip ok">✓ Inducted</span>':'<span class="chip bad">Needs induction</span>';
+const visitWhat=v=>v.kind==='visitor'?'Seeing '+(v.visiting||'—')+(v.reason?' · '+v.reason:''):(v.trade||'');
+const DEFAULT_SITE_RULES='Wear a hard hat, hi-vis and safety boots at all times, plus gloves and eye protection where needed.\nReport to the site manager when you arrive. No work starts until you have had a site induction.\nReport all accidents, near misses and damage straight away.\nIf the fire alarm sounds, stop work, leave by the nearest exit and go to the assembly point. Do not go back in until told it is safe.\nSign out every time you leave site.';
+
+const ATT={jobId:null,from:dayStart(),to:dayStart(),visits:null,err:'',at:0,timer:null,busy:false};
+async function attLoad(jid,quiet){
+  if(ATT.busy)return;ATT.busy=true;
+  try{ATT.visits=await siteVisits(jid,ATT.from,ATT.to+864e5);ATT.err='';ATT.at=Date.now();}
+  catch(e){ATT.err=e.code==='unavailable'?'No signal: site attendance needs signal to load.':(e.message||String(e));if(!quiet)toast(ATT.err,4000);}
+  finally{ATT.busy=false;}
+  if(ATT.jobId===jid)bump();
+}
+function attWatch(jid){
+  if(ATT.jobId!==jid){clearInterval(ATT.timer);Object.assign(ATT,{jobId:jid,from:dayStart(),to:dayStart(),visits:null,err:'',timer:null});}
+  if(!ATT.timer){attLoad(jid,true);ATT.timer=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)attLoad(jid,true);},20000);}
+  if(!VIEW.attClean){VIEW.attClean=true;const prev=VIEW.cleanup;VIEW.cleanup=()=>{prev?.();clearInterval(ATT.timer);ATT.timer=null;ATT.jobId=null;};}
+}
+
+const attSaveT={};
+function tabAttendance(j){
+  const b=$('#tabBody');
+  if(!j.siteCode){
+    b.innerHTML=`<div class="card att-setup"><div class="att-ico">🪪</div><div><h2>Site attendance</h2>
+      <p>Give this job its own QR code. Put the poster up at the site entrance and everyone scans it to sign in and out on their phone: no app or login needed. Returning personnel sign in with just their mobile number, new starters fill in their details and emergency contact once, and visitors say who they're seeing.</p>
+      <p class="meta">You get a live list of who's on site, a fire roll call you can print in one tap, and a full register you can download.</p>
+      <button class="btn btn-y" id="attOn">Set up site attendance</button></div></div>`;
+    $('#attOn').onclick=()=>{w(updateDoc(doc(db,'jobs',j.id),{siteCode:newSiteCode(),siteSignIn:true,siteRules:j.siteRules||DEFAULT_SITE_RULES}));toast('Site attendance is on. Print the QR poster for the entrance.');};
+    return;
+  }
+  attWatch(j.id);
+  const all=ATT.visits||[];
+  const now=all.filter(onSiteNow).sort((a,c)=>c.inAt-a.inAt);
+  const forgot=all.filter(v=>v.outAt==null&&!onSiteNow(v));
+  const reg=all.filter(v=>v.inAt>=ATT.from&&v.inAt<ATT.to+864e5).sort((a,c)=>c.inAt-a.inAt);
+  const per=now.filter(v=>v.kind!=='visitor'),vis=now.filter(v=>v.kind==='visitor'),need=per.filter(v=>!v.inducted);
+  const off=j.siteSignIn===false;
+  const url=siteUrl(j);
+  const isToday=ATT.from===dayStart()&&ATT.to===dayStart();
+  b.innerHTML=`
+    ${off?'<div class="note-bar" style="background:#fee2e2;border-color:#fecaca">Site attendance is <b>turned off</b> for this job. The QR code shows "not in use" until you turn it back on.</div>':''}
+    <div class="att-top">
+      <div class="card att-qr"><div class="qrbox" id="attQr">${qrCache[url]||'<span class="meta">QR code…</span>'}</div>
+        <div class="att-qr-b"><h2>Site Attendance QR code</h2>
+          <p class="meta">Print the poster and put it up at the site entrance. Anyone who scans it can sign in or out on this job, so swap to a new code if a poster goes missing.</p>
+          <div class="copied"><span style="font-family:var(--ffm);font-size:12px;word-break:break-all">${esc(url)}</span><button class="btn btn-o btn-sm" id="attCopy">Copy</button></div>
+          <div class="row"><button class="btn btn-y btn-sm" id="attPoster">🖨 Print QR poster</button><a class="btn btn-o btn-sm" href="${esc(url)}" target="_blank" rel="noopener">Open page ↗</a>
+            <button class="btn btn-o btn-sm" id="attNew">New QR code</button><button class="btn btn-o btn-sm" id="attOff">${off?'Turn back on':'Turn off'}</button></div></div></div>
+      <div class="card att-set"><h2>What people see when they scan</h2>
+        <div class="f2"><div class="f"><label>Site manager / contact</label><input data-s="siteContact" value="${esc(j.siteContact||'')}" placeholder="e.g. Jack Higgins 07700 900123"></div>
+        <div class="f"><label>🔥 Fire assembly point</label><input data-s="siteAssembly" value="${esc(j.siteAssembly||'')}" placeholder="e.g. Front car park by the gate"></div></div>
+        <div class="f"><label>Site rules (everyone ticks to agree)</label><textarea data-s="siteRules" rows="5">${esc(j.siteRules||'')}</textarea></div></div>
+    </div>
+    <div class="att-kpis">
+      <div class="card"><b>${now.length}</b><span>On site now</span></div>
+      <div class="card"><b>${per.length}</b><span>Personnel</span></div>
+      <div class="card"><b>${vis.length}</b><span>Visitors</span></div>
+      <div class="card ${need.length?'alert':''}"><b>${need.length}</b><span>Need induction</span></div>
+    </div>
+    ${ATT.err?`<div class="note-bar" style="background:#fee2e2;border-color:#fecaca">${esc(ATT.err)}</div>`:''}
+    <div class="card" style="margin-bottom:14px"><div class="group-h"><h3>On site now</h3><span class="chip">${now.length}</span><span class="spacer"></span>
+        <span class="meta">${ATT.at?'Updated '+fmtTime(ATT.at):'Loading…'}</span><button class="btn btn-o btn-sm" id="attRef">↻</button><button class="btn btn-dark btn-sm" id="attRoll">🔥 Fire roll call</button></div>
+      ${ATT.visits===null?'<div class="empty">Loading…</div>':now.length?attTable(now,{live:true}):'<div class="empty"><b>Nobody signed in</b>People appear here as soon as they scan the QR code and sign in.</div>'}</div>
+    ${forgot.length?`<div class="card" style="margin-bottom:14px;border-left:5px solid var(--amber)"><div class="group-h"><h3>Didn't sign out</h3><span class="chip warn">${forgot.length}</span><span class="spacer"></span><button class="btn btn-o btn-sm" id="attCloseAll">Close all off</button></div>
+      <p class="meta" style="padding:8px 14px 0">Signed in on an earlier day and never signed out. Closing them off keeps them out of the fire roll call.</p>${attTable(forgot,{forgot:true})}</div>`:''}
+    <div class="card"><div class="group-h" style="flex-wrap:wrap"><h3>Attendance register</h3><span class="chip">${reg.length}</span><span class="spacer"></span>
+        <input type="date" id="attFrom" value="${ymd(ATT.from)}" class="att-date"> <span class="meta">to</span> <input type="date" id="attTo" value="${ymd(ATT.to)}" class="att-date">
+        <button class="btn btn-o btn-sm ${isToday?'on':''}" data-r="0">Today</button><button class="btn btn-o btn-sm" data-r="6">7 days</button><button class="btn btn-o btn-sm" data-r="29">30 days</button>
+        <button class="btn btn-o btn-sm" id="attCsv">⬇ Excel / CSV</button><button class="btn btn-o btn-sm" id="attPrint">🖨 Print</button></div>
+      ${ATT.visits===null?'<div class="empty">Loading…</div>':reg.length?attTable(reg,{register:true}):'<div class="empty"><b>Nobody signed in on these dates</b></div>'}</div>`;
+
+  qrSvg(url).then(svg=>{const q=$('#attQr');if(q)q.innerHTML=svg;}).catch(e=>{const q=$('#attQr');if(q)q.innerHTML=`<span class="meta">${esc(e.message)}</span>`;});
+  $('#attCopy').onclick=()=>navigator.clipboard?.writeText(url).then(()=>toast('Link copied'));
+  $('#attPoster').onclick=()=>attPoster(j);
+  $('#attNew').onclick=async()=>{if(!await confirmBox('New QR code','The old poster will stop working straight away and you\'ll need to print the new one. People already signed in can still sign out.','Make a new code'))return;w(updateDoc(doc(db,'jobs',j.id),{siteCode:newSiteCode()}));toast('New QR code made. Print the new poster.');};
+  $('#attOff').onclick=()=>w(updateDoc(doc(db,'jobs',j.id),{siteSignIn:off}));
+  b.querySelectorAll('[data-s]').forEach(i=>i.oninput=()=>{clearTimeout(attSaveT[i.dataset.s]);attSaveT[i.dataset.s]=setTimeout(()=>w(updateDoc(doc(db,'jobs',j.id),{[i.dataset.s]:i.value})),700);});
+  $('#attRef').onclick=()=>attLoad(j.id);
+  $('#attRoll').onclick=()=>attRollCall(j,now);
+  const setRange=(f,t)=>{ATT.from=f;ATT.to=t;ATT.visits=null;bump();attLoad(j.id);};
+  b.querySelectorAll('[data-r]').forEach(x=>x.onclick=()=>setRange(dayStart()-Number(x.dataset.r)*864e5,dayStart()));
+  $('#attFrom').onchange=$('#attTo').onchange=()=>{const f=dayStart(new Date($('#attFrom').value+'T00:00')),t=dayStart(new Date($('#attTo').value+'T00:00'));if(f&&t)setRange(Math.min(f,t),Math.max(f,t));};
+  $('#attCsv').onclick=()=>attCsv(j,reg);
+  $('#attPrint').onclick=()=>attRegisterPrint(j,reg);
+  $('#attCloseAll')&&($('#attCloseAll').onclick=async()=>{for(const v of forgot)await siteVisitAction('out',j.id,v.id,{forgot:true}).catch(()=>{});attLoad(j.id);});
+  b.querySelectorAll('[data-vout]').forEach(x=>x.onclick=async e=>{e.stopPropagation();const v=all.find(y=>y.id===x.dataset.vout);
+    try{await siteVisitAction('out',j.id,v.id,{forgot:x.dataset.forgot==='1'});toast(v.name+' signed out');attLoad(j.id);}catch(err){toast(err.message,4000);}});
+  b.querySelectorAll('[data-vind]').forEach(x=>x.onclick=async e=>{e.stopPropagation();const v=all.find(y=>y.id===x.dataset.vind);
+    try{await siteVisitAction('inducted',j.id,v.id);toast(v.name+' marked as inducted');attLoad(j.id);}catch(err){toast(err.message,4000);}});
+  b.querySelectorAll('tr[data-v]').forEach(tr=>tr.onclick=()=>attPerson(all.find(v=>v.id===tr.dataset.v)));
+}
+function attTable(list,{live,forgot,register}={}){
+  return`<div class="tbl-wrap"><table class="tbl att-tbl"><thead><tr>${register?'<th>Date</th>':''}<th>Name</th><th>Company</th><th>Type</th><th class="hide-m">Trade / here for</th><th>In</th><th>${live?'On site':'Out'}</th>${register?'<th>Hours</th>':''}<th class="hide-m">Mobile</th><th></th></tr></thead><tbody>
+  ${list.map(v=>`<tr class="click" data-v="${esc(v.id)}">${register?`<td class="no">${fmtDate(v.inAt)}</td>`:''}<td><b>${esc(v.name)}</b>${v.kind!=='visitor'?'<div style="margin-top:3px">'+inductBadge(v)+'</div>':''}</td><td>${esc(v.company)}</td><td>${kindBadge(v)}</td><td class="hide-m">${esc(visitWhat(v))}</td>
+    <td class="no">${forgot?fmtDate(v.inAt)+' ':''}${fmtTime(v.inAt)}</td>
+    <td class="no">${live?fmtDur(Date.now()-v.inAt):v.outAt==null?(onSiteNow(v)?'<span class="chip ok">On site</span>':'<span class="chip warn">Didn\'t sign out</span>'):v.forgot?'<span class="chip warn">Didn\'t sign out</span>':fmtTime(v.outAt)}</td>
+    ${register?`<td class="no">${v.outAt&&!v.forgot?fmtDur(v.outAt-v.inAt):'—'}</td>`:''}
+    <td class="hide-m"><a href="tel:${esc(v.phone)}" onclick="event.stopPropagation()">${esc(v.phone)}</a></td>
+    <td style="text-align:right;white-space:nowrap">${live&&v.kind!=='visitor'&&!v.inducted?`<button class="btn btn-green btn-sm" data-vind="${esc(v.id)}">✓ Inducted</button> `:''}${v.outAt==null?`<button class="btn btn-o btn-sm" data-vout="${esc(v.id)}" data-forgot="${forgot?1:0}">${forgot?'Close off':'Sign out'}</button>`:''}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function attPerson(v){
+  if(!v)return;
+  const row=(k,val)=>val?`<b>${k}</b><span>${val}</span>`:'';
+  modal(v.name,`<div class="row">${kindBadge(v)} ${inductBadge(v)}</div><div class="kvs">
+    ${row('Company',esc(v.company))}${row(v.kind==='visitor'?'Here to see':'Trade / role',esc(v.kind==='visitor'?v.visiting:v.trade))}${row('Reason',esc(v.reason))}
+    ${row('Mobile',`<a href="tel:${esc(v.phone)}">${esc(v.phone)}</a>`)}${row('Vehicle reg',esc(v.reg))}
+    ${row('Signed in',fmtDate(v.inAt)+' '+fmtTime(v.inAt))}${row('Signed out',v.outAt==null?'Still signed in':v.forgot?'Didn\'t sign out':fmtTime(v.outAt)+(v.outBy&&v.outBy!=='self'?' (by '+esc(v.outBy)+')':''))}
+    ${row('Emergency contact',v.emergencyName?esc(v.emergencyName)+` · <a href="tel:${esc(v.emergencyPhone)}">${esc(v.emergencyPhone)}</a>`:'')}
+    ${row('Skills card',esc([v.cscsType,v.cscsNo,v.cscsExpiry&&'exp '+fmtDate(v.cscsExpiry)].filter(Boolean).join(' · ')))}
+    ${row('Medical info',esc(v.medical))}${row('Inducted',v.inducted&&v.inductedAt?fmtDate(v.inductedAt)+(v.inductedBy?' by '+esc(v.inductedBy):''):'')}
+    ${row('Fit to work',v.kind==='visitor'?'':v.fit?'✓ Confirmed':'')}${row('Site rules',v.agreed?'✓ Agreed':'')}</div>`,{ok:'Close',cancel:''});
+}
+function attSheet(title,inner,{poster}={}){
+  const r=$('#report');
+  r.innerHTML=`<div class="rbar"><button class="btn btn-ghost btn-sm" id="rback">← Back</button><b style="font-family:var(--ffh)">${esc(title)}</b><span class="spacer"></span><button class="btn btn-y" id="rprint">🖨 Print / Save as PDF</button></div><div class="sheet ${poster?'poster':''}">${inner}</div>`;
+  document.body.classList.add('show-report');window.scrollTo(0,0);
+  $('#rback').onclick=()=>{document.body.classList.remove('show-report');r.innerHTML='';};
+  $('#rprint').onclick=()=>window.print();
+}
+async function attPoster(j){
+  let svg='';try{svg=await qrSvg(siteUrl(j));}catch(e){toast(e.message,4000);return;}
+  attSheet('QR poster',`<div class="pst-top"><img src="assets/logo-light.png" alt="PML"><div class="pst-k">Site Attendance</div></div>
+    <div class="pst-job"><div class="r">${esc(j.ref||'')}</div><h1>${esc(j.name)}</h1><div class="a">${esc(j.address||'')}</div></div>
+    <div class="pst-qr">${svg}</div>
+    <div class="pst-cta">Scan to sign in &amp; out</div>
+    <div class="pst-who"><div><b>👷</b>Personnel</div><div><b>🆕</b>New starters</div><div><b>👋</b>Visitors</div></div>
+    <p class="pst-must">Everyone on this site must sign in when they arrive and sign out every time they leave. This is our fire register.</p>
+    <div class="pst-info">${j.siteAssembly?`<div><span>🔥 Fire assembly point</span><b>${esc(j.siteAssembly)}</b></div>`:''}${j.siteContact?`<div><span>Site manager</span><b>${esc(j.siteContact)}</b></div>`:''}</div>
+    <div class="pst-foot"><span>No camera? Go to ${esc(siteUrl(j).replace(/^https?:\/\//,''))}</span><span>PML Fire Protection · Building Confidence.</span></div>`,{poster:true});
+}
+function attRollCall(j,now){
+  const at=new Date();
+  attSheet('Fire roll call',`<div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">🔥 Fire roll call</div><div class="s">${esc(j.name)}${j.ref?' · '+esc(j.ref):''}</div></div>
+      <div class="d">${at.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}<br><b style="font-size:13pt;color:#111">${fmtTime(at)}</b></div></div>
+    <div class="r-where"><div class="fl">${now.length} ${now.length==1?'person':'people'} signed in on site</div>${j.siteAssembly?`<div class="lc">Assembly point: ${esc(j.siteAssembly)}</div>`:''}</div>
+    <table class="r-tbl"><thead><tr><th style="width:12mm">✓</th><th>Name</th><th>Company</th><th>Type</th><th>In</th><th>Mobile</th></tr></thead><tbody>
+    ${now.map(v=>`<tr><td><div style="width:6mm;height:6mm;border:1.5px solid #333;border-radius:2px"></div></td><td><b>${esc(v.name)}</b></td><td>${esc(v.company)}</td><td>${v.kind==='visitor'?'Visitor (seeing '+esc(v.visiting)+')':esc(v.trade||'Personnel')}</td><td>${fmtTime(v.inAt)}</td><td>${esc(v.phone)}</td></tr>`).join('')||'<tr><td colspan="6">Nobody signed in</td></tr>'}</tbody></table>
+    <div class="r-sign"><div>Roll call taken by / time</div><div>All accounted for (signature)</div></div>
+    <div class="r-foot"><span>PML Fire Protection · Building Confidence.</span><span>From the Site Attendance register at ${at.toLocaleString('en-GB')}</span></div>`);
+}
+function attRegisterPrint(j,list){
+  const range=ATT.from===ATT.to?fmtDate(ATT.from):fmtDate(ATT.from)+' to '+fmtDate(ATT.to);
+  attSheet('Attendance register',`<div class="r-head"><img src="assets/logo-dark-print.png" alt="PML"><div><div class="t">Site Attendance Register</div><div class="s">${esc(j.name)}${j.ref?' · '+esc(j.ref):''}</div></div><div class="d">${esc(range)}<br>${list.length} sign in${list.length==1?'':'s'}</div></div>
+    <table class="r-tbl"><thead><tr><th>Date</th><th>Name</th><th>Company</th><th>Type</th><th>Trade / here for</th><th>In</th><th>Out</th><th>Hours</th><th>Inducted</th></tr></thead><tbody>
+    ${list.map(v=>`<tr><td>${fmtDate(v.inAt)}</td><td><b>${esc(v.name)}</b></td><td>${esc(v.company)}</td><td>${v.kind==='visitor'?'Visitor':'Personnel'+(v.firstVisit?' (new)':'')}</td><td>${esc(visitWhat(v))}</td><td>${fmtTime(v.inAt)}</td><td>${v.outAt==null?(onSiteNow(v)?'On site':'Not signed out'):v.forgot?'Not signed out':fmtTime(v.outAt)}</td><td>${v.outAt&&!v.forgot?fmtDur(v.outAt-v.inAt):'—'}</td><td>${v.kind==='visitor'?'—':v.inducted?'Yes':'No'}</td></tr>`).join('')}</tbody></table>
+    <div class="r-foot"><span>PML Fire Protection · Building Confidence.</span><span>Generated ${new Date().toLocaleString('en-GB')}</span></div>`);
+}
+function attCsv(j,list){
+  if(!list.length){toast('Nobody signed in on these dates');return;}
+  const cols=[['Date',v=>fmtDate(v.inAt)],['Name',v=>v.name],['Company',v=>v.company],['Type',v=>v.kind==='visitor'?'Visitor':'Personnel'],['First visit',v=>v.firstVisit?'Yes':''],
+    ['Trade / role',v=>v.trade],['Here to see',v=>v.visiting],['Reason',v=>v.reason],['Mobile',v=>v.phone],['Vehicle reg',v=>v.reg],
+    ['Time in',v=>fmtTime(v.inAt)],['Time out',v=>v.outAt==null||v.forgot?'':fmtTime(v.outAt)],['Hours',v=>v.outAt&&!v.forgot?((v.outAt-v.inAt)/36e5).toFixed(2):''],
+    ['Didn\'t sign out',v=>forgotOut(v)?'Yes':''],['Inducted',v=>v.kind==='visitor'?'':v.inducted?'Yes':'No'],['Emergency contact',v=>v.emergencyName],['Emergency number',v=>v.emergencyPhone],
+    ['Skills card',v=>v.cscsType],['Card number',v=>v.cscsNo],['Card expiry',v=>v.cscsExpiry]];
+  const cell=x=>{const s=String(x??'');return/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const csv=[cols.map(c=>c[0]),...[...list].reverse().map(v=>cols.map(c=>c[1](v)))].map(r=>r.map(cell).join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));
+  a.download=`Site attendance ${j.name.replace(/[\\/:*?"<>|_]+/g,' ').trim()} ${ymd(ATT.from)}${ATT.to!==ATT.from?' to '+ymd(ATT.to):''}.csv`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+// Every job at once: who's on site right now (menu → Site attendance).
+let attAll={list:null,err:'',at:0};
+function viewAttendance(){
+  setCrumbs([['Jobs','#/'],['Site attendance']]);
+  const load=()=>siteVisitsNow().then(l=>{attAll={list:l,err:'',at:Date.now()};bump();}).catch(e=>{attAll.err=e.code==='unavailable'?'No signal: site attendance needs signal to load.':e.message;bump();});
+  load();const t=setInterval(()=>{if(document.visibilityState==='visible'&&navigator.onLine)load();},20000);
+  VIEW.cleanup=()=>clearInterval(t);
+  VIEW.refresh=draw;draw();
+  function draw(){
+    const live=(attAll.list||[]).filter(onSiteNow);
+    const jobs=JOBS.filter(j=>j.status!=='completed');
+    const on=jobs.filter(j=>j.siteCode&&j.siteSignIn!==false),notSet=jobs.filter(j=>!j.siteCode||j.siteSignIn===false);
+    const total=live.filter(v=>on.some(j=>j.id===v.jobId)).length;
+    $('#app').innerHTML=`<div class="main">
+      <div class="page-head"><div><h1>🪪 Site attendance</h1><p class="muted">Who's signed in on site right now, across every job. ${attAll.at?'Updated '+fmtTime(attAll.at)+'.':''}</p></div><span class="spacer"></span></div>
+      ${attAll.err?`<div class="note-bar" style="background:#fee2e2;border-color:#fecaca">${esc(attAll.err)}</div>`:''}
+      <div class="att-kpis"><div class="card"><b>${attAll.list?total:'…'}</b><span>On site now</span></div><div class="card"><b>${on.length}</b><span>Jobs with a QR code</span></div>
+        <div class="card"><b>${live.filter(v=>v.kind==='visitor').length}</b><span>Visitors</span></div><div class="card ${live.some(v=>v.kind!=='visitor'&&!v.inducted)?'alert':''}"><b>${live.filter(v=>v.kind!=='visitor'&&!v.inducted).length}</b><span>Need induction</span></div></div>
+      <div class="grid">${on.map(j=>{const l=live.filter(v=>v.jobId===j.id);return`<div class="card job-card" data-go="#/job/${j.id}/attendance">
+          <div class="ref">${esc(j.ref||'—')}</div><h3>${esc(j.name)}</h3><div class="addr">${esc(j.address||'')}</div>
+          <div class="att-count"><b>${attAll.list?l.length:'…'}</b> on site${l.some(v=>v.kind!=='visitor'&&!v.inducted)?' <span class="chip bad">induction needed</span>':''}</div>
+          <div class="att-names">${l.slice(0,6).map(v=>`<span class="chip ${v.kind==='visitor'?'vis':''}">${esc(v.name)}</span>`).join('')}${l.length>6?`<span class="chip">＋${l.length-6}</span>`:''}</div></div>`;}).join('')||'<div class="empty card" style="grid-column:1/-1"><b>No jobs have site attendance yet</b>Open a job → Site attendance → Set up.</div>'}</div>
+      ${notSet.length?`<h2 style="margin:22px 0 10px">Not set up</h2><div class="card">${notSet.map(j=>`<div class="snag-row" data-go="#/job/${j.id}/attendance"><div class="b"><b>${esc(j.name)}</b><span class="meta">${esc(j.ref||'')} ${j.siteCode?'· turned off':''}</span></div><span class="btn btn-o btn-sm">Set up</span></div>`).join('')}</div>`:''}
+    </div>`;
+    document.querySelectorAll('[data-go]').forEach(r=>r.onclick=()=>location.hash=r.dataset.go);
+  }
 }
 
 /* ═════════════ library (trades & defects, main contractor list) ═════════════ */
