@@ -357,6 +357,10 @@ body.show-report #report{display:block}
 .att-tbl td{vertical-align:top}
 .att-tbl a[href^="tel:"]{white-space:nowrap}
 .att-tbl .chip{font-size:10.5px;padding:2px 7px}
+.geo-box{border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.geo-l{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.geo-box select{height:34px;border:1.5px solid var(--border);border-radius:8px;padding:0 8px;background:#fff;font-size:12.5px}
+.geo-box p select{height:28px;padding:0 4px}
 .att-date{height:34px;border:1.5px solid var(--border);border-radius:8px;padding:0 8px;background:#fff;font-size:12.5px}
 .att-count{font-size:13px;color:var(--muted)}
 .att-count b{font:800 24px var(--ffh);color:var(--ink);margin-right:3px}
@@ -1174,6 +1178,15 @@ const onSiteNow=v=>v.outAt==null&&Date.now()-v.inAt<STILL_HERE;
 const forgotOut=v=>(v.outAt==null&&Date.now()-v.inAt>=STILL_HERE)||v.forgot;
 const kindBadge=v=>v.kind==='visitor'?'<span class="chip vis">Visitor</span>':`<span class="chip per">Personnel</span>${v.firstVisit?' <span class="chip warn">New</span>':''}`;
 const inductBadge=v=>v.kind==='visitor'?'':v.inducted?'<span class="chip ok">✓ Inducted</span>':'<span class="chip bad">Needs induction</span>';
+const farTxt=d=>d<1000?Math.round(d/10)*10+' m':(d/1000).toFixed(d<10000?1:0)+' km';
+const whereBadge=v=>!v.where?'':!v.where.shared?'<span class="chip warn">📍 No location</span>':v.where.onSite?'':`<span class="chip bad">📍 ${farTxt(v.where.d)} away</span>`;
+const GEO_MODES={block:'Only allow sign ins on site',flag:'Allow, but flag anyone off site',off:'Off (sign in from anywhere)'};
+const findPostcode=a=>(String(a||'').match(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i)||[])[0];
+async function postcodePin(pc){
+  const r=await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent(pc.replace(/\s+/g,''))).then(x=>x.json()).catch(()=>null);
+  if(!r||r.status!==200)throw new Error(r?.error||'Couldn\'t look up that postcode. Check you have signal.');
+  return{siteLat:r.result.latitude,siteLng:r.result.longitude,sitePinFrom:'postcode '+r.result.postcode};
+}
 const visitWhat=v=>v.kind==='visitor'?'Seeing '+(v.visiting||'—')+(v.reason?' · '+v.reason:''):(v.trade||'');
 const DEFAULT_SITE_RULES='Wear a hard hat, hi-vis and safety boots at all times, plus gloves and eye protection where needed.\nReport to the site manager when you arrive. No work starts until you have had a site induction.\nReport all accidents, near misses and damage straight away.\nIf the fire alarm sounds, stop work, leave by the nearest exit and go to the assembly point. Do not go back in until told it is safe.\nSign out every time you leave site.';
 
@@ -1199,7 +1212,11 @@ function tabAttendance(j){
       <p>Give this job its own QR code. Put the poster up at the site entrance and everyone scans it to sign in and out on their phone: no app or login needed. Returning personnel sign in with just their mobile number, new starters fill in their details and emergency contact once, and visitors say who they're seeing.</p>
       <p class="meta">You get a live list of who's on site, a fire roll call you can print in one tap, and a full register you can download.</p>
       <button class="btn btn-y" id="attOn">Set up site attendance</button></div></div>`;
-    $('#attOn').onclick=()=>{w(updateDoc(doc(db,'jobs',j.id),{siteCode:newSiteCode(),siteSignIn:true,siteRules:j.siteRules||DEFAULT_SITE_RULES}));toast('Site attendance is on. Print the QR poster for the entrance.');};
+    $('#attOn').onclick=async()=>{
+      const pc=findPostcode(j.address);let pin={};
+      if(pc)try{pin={...await postcodePin(pc),siteGeo:'block',siteRadius:300};}catch{}
+      w(updateDoc(doc(db,'jobs',j.id),{siteCode:newSiteCode(),siteSignIn:true,siteRules:j.siteRules||DEFAULT_SITE_RULES,...pin}));
+      toast(pin.siteLat?'Site attendance is on, and people can only sign in within 300 m of '+pc.toUpperCase()+'. Check the pin when you\'re next on site.':'Site attendance is on. Set the site pin so people can only sign in on site.',5000);};
     return;
   }
   attWatch(j.id);
@@ -1210,6 +1227,7 @@ function tabAttendance(j){
   const per=now.filter(v=>v.kind!=='visitor'),vis=now.filter(v=>v.kind==='visitor'),need=per.filter(v=>!v.inducted);
   const off=j.siteSignIn===false;
   const url=siteUrl(j);
+  const pinSet=j.siteLat!=null&&j.siteLng!=null,geoMode=pinSet?(j.siteGeo||'block'):'off';
   const isToday=ATT.from===dayStart()&&ATT.to===dayStart();
   b.innerHTML=`
     ${off?'<div class="note-bar" style="background:#fee2e2;border-color:#fecaca">Site attendance is <b>turned off</b> for this job. The QR code shows "not in use" until you turn it back on.</div>':''}
@@ -1223,7 +1241,12 @@ function tabAttendance(j){
       <div class="card att-set"><h2>What people see when they scan</h2>
         <div class="f2"><div class="f"><label>Site manager / contact</label><input data-s="siteContact" value="${esc(j.siteContact||'')}" placeholder="e.g. Jack Higgins 07700 900123"></div>
         <div class="f"><label>🔥 Fire assembly point</label><input data-s="siteAssembly" value="${esc(j.siteAssembly||'')}" placeholder="e.g. Front car park by the gate"></div></div>
-        <div class="f"><label>Site rules (everyone ticks to agree)</label><textarea data-s="siteRules" rows="5">${esc(j.siteRules||'')}</textarea></div></div>
+        <div class="f"><label>Site rules (everyone ticks to agree)</label><textarea data-s="siteRules" rows="5">${esc(j.siteRules||'')}</textarea></div>
+        <div class="geo-box"><div class="row" style="gap:8px"><label class="geo-l">📍 On site check</label><span class="spacer"></span>
+          <select id="geoMode" ${pinSet?'':'disabled'}>${Object.entries(GEO_MODES).map(([k,t])=>`<option value="${k}" ${geoMode===k?'selected':''}>${t}</option>`).join('')}</select></div>
+          <p class="meta">${pinSet?`Site pin set${j.sitePinFrom?' from '+esc(j.sitePinFrom):''}. People must be within <select id="geoRad">${[100,200,300,500,1000].map(m=>`<option value="${m}" ${Number(j.siteRadius||300)===m?'selected':''}>${m<1000?m+' m':'1 km'}</option>`).join('')}</select> of it to sign in. <a href="https://www.google.com/maps?q=${j.siteLat},${j.siteLng}" target="_blank" rel="noopener">Check on map ↗</a>`
+            :'No site pin yet, so people can sign in from anywhere. Set the pin to stop people signing in from a photo of the QR code.'}</p>
+          <div class="row" style="gap:6px"><button class="btn btn-o btn-sm" id="geoHere">📍 Use my location (on site)</button><button class="btn btn-o btn-sm" id="geoPc">Use the postcode</button></div></div></div>
     </div>
     <div class="att-kpis">
       <div class="card"><b>${now.length}</b><span>On site now</span></div>
@@ -1249,6 +1272,21 @@ function tabAttendance(j){
   $('#attNew').onclick=async()=>{if(!await confirmBox('New QR code','The old poster will stop working straight away and you\'ll need to print the new one. People already signed in can still sign out.','Make a new code'))return;w(updateDoc(doc(db,'jobs',j.id),{siteCode:newSiteCode()}));toast('New QR code made. Print the new poster.');};
   $('#attOff').onclick=()=>w(updateDoc(doc(db,'jobs',j.id),{siteSignIn:off}));
   b.querySelectorAll('[data-s]').forEach(i=>i.oninput=()=>{clearTimeout(attSaveT[i.dataset.s]);attSaveT[i.dataset.s]=setTimeout(()=>w(updateDoc(doc(db,'jobs',j.id),{[i.dataset.s]:i.value})),700);});
+  const setPin=(pin,msg)=>{w(updateDoc(doc(db,'jobs',j.id),{...pin,siteGeo:j.siteGeo&&j.siteGeo!=='off'?j.siteGeo:'block',siteRadius:j.siteRadius||300}));toast(msg,4000);};
+  $('#geoMode').onchange=e=>w(updateDoc(doc(db,'jobs',j.id),{siteGeo:e.target.value}));
+  $('#geoRad')&&($('#geoRad').onchange=e=>w(updateDoc(doc(db,'jobs',j.id),{siteRadius:Number(e.target.value)})));
+  $('#geoHere').onclick=()=>{
+    if(!navigator.geolocation){toast('This device can\'t share its location');return;}
+    toast('Getting your location…');
+    navigator.geolocation.getCurrentPosition(p=>setPin({siteLat:p.coords.latitude,siteLng:p.coords.longitude,sitePinFrom:'your location on '+fmtDate(Date.now())},'Site pin set to where you are now (±'+Math.round(p.coords.accuracy)+' m)'),
+      e=>toast(e.code===1?'Location is blocked for this site in your browser settings':'Couldn\'t get your location. Try outside.',5000),{enableHighAccuracy:true,timeout:20000});
+  };
+  $('#geoPc').onclick=async()=>{
+    let pc=findPostcode(j.address);
+    const v=await modal('Site pin from postcode',`<div class="f"><label>Site postcode</label><input name="pc" value="${esc(pc||'')}" placeholder="e.g. SG8 6DX"></div><p class="meta">The pin goes in the middle of the postcode. On big sites, or if the postcode covers a wide area, use a bigger distance or set it from your location when you're on site.</p>`,{ok:'Set pin'});
+    if(!v||!v.pc.trim())return;
+    try{const pin=await postcodePin(v.pc);setPin(pin,'Site pin set from '+pin.sitePinFrom);}catch(e){toast(e.message,5000);}
+  };
   $('#attRef').onclick=()=>attLoad(j.id);
   $('#attRoll').onclick=()=>attRollCall(j,now);
   const setRange=(f,t)=>{ATT.from=f;ATT.to=t;ATT.visits=null;bump();attLoad(j.id);};
@@ -1265,7 +1303,7 @@ function tabAttendance(j){
 }
 function attTable(list,{live,forgot,register}={}){
   return`<div class="tbl-wrap"><table class="tbl att-tbl"><thead><tr>${register?'<th>Date</th>':''}<th>Name</th><th>Company</th><th>Type</th><th class="hide-m">Trade / here for</th><th>In</th><th>${live?'On site':'Out'}</th>${register?'<th>Hours</th>':''}<th class="hide-m">Mobile</th><th></th></tr></thead><tbody>
-  ${list.map(v=>`<tr class="click" data-v="${esc(v.id)}">${register?`<td class="no">${fmtDate(v.inAt)}</td>`:''}<td><b>${esc(v.name)}</b>${v.kind!=='visitor'?'<div style="margin-top:3px">'+inductBadge(v)+'</div>':''}</td><td>${esc(v.company)}</td><td>${kindBadge(v)}</td><td class="hide-m">${esc(visitWhat(v))}</td>
+  ${list.map(v=>`<tr class="click" data-v="${esc(v.id)}">${register?`<td class="no">${fmtDate(v.inAt)}</td>`:''}<td><b>${esc(v.name)}</b>${v.kind!=='visitor'||whereBadge(v)?'<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap">'+inductBadge(v)+whereBadge(v)+'</div>':''}</td><td>${esc(v.company)}</td><td>${kindBadge(v)}</td><td class="hide-m">${esc(visitWhat(v))}</td>
     <td class="no">${forgot?fmtDate(v.inAt)+' ':''}${fmtTime(v.inAt)}</td>
     <td class="no">${live?fmtDur(Date.now()-v.inAt):v.outAt==null?(onSiteNow(v)?'<span class="chip ok">On site</span>':'<span class="chip warn">Didn\'t sign out</span>'):v.forgot?'<span class="chip warn">Didn\'t sign out</span>':fmtTime(v.outAt)}</td>
     ${register?`<td class="no">${v.outAt&&!v.forgot?fmtDur(v.outAt-v.inAt):'—'}</td>`:''}
@@ -1283,6 +1321,7 @@ function attPerson(v){
     ${row('Emergency contact',v.emergencyName?esc(v.emergencyName)+` · <a href="tel:${esc(v.emergencyPhone)}">${esc(v.emergencyPhone)}</a>`:'')}
     ${row('Skills card',esc([v.cscsType,v.cscsNo,v.cscsExpiry&&'exp '+fmtDate(v.cscsExpiry)].filter(Boolean).join(' · ')))}
     ${row('Medical info',esc(v.medical))}${row('Inducted',v.inducted&&v.inductedAt?fmtDate(v.inductedAt)+(v.inductedBy?' by '+esc(v.inductedBy):''):'')}
+    ${row('Location check',!v.where?'':!v.where.shared?'Location not shared':v.where.onSite?'✓ On site':'📍 '+farTxt(v.where.d)+' from the site pin')}
     ${row('Fit to work',v.kind==='visitor'?'':v.fit?'✓ Confirmed':'')}${row('Site rules',v.agreed?'✓ Agreed':'')}</div>`,{ok:'Close',cancel:''});
 }
 function attSheet(title,inner,{poster}={}){
@@ -1325,7 +1364,7 @@ function attCsv(j,list){
   const cols=[['Date',v=>fmtDate(v.inAt)],['Name',v=>v.name],['Company',v=>v.company],['Type',v=>v.kind==='visitor'?'Visitor':'Personnel'],['First visit',v=>v.firstVisit?'Yes':''],
     ['Trade / role',v=>v.trade],['Here to see',v=>v.visiting],['Reason',v=>v.reason],['Mobile',v=>v.phone],['Vehicle reg',v=>v.reg],
     ['Time in',v=>fmtTime(v.inAt)],['Time out',v=>v.outAt==null||v.forgot?'':fmtTime(v.outAt)],['Hours',v=>v.outAt&&!v.forgot?((v.outAt-v.inAt)/36e5).toFixed(2):''],
-    ['Didn\'t sign out',v=>forgotOut(v)?'Yes':''],['Inducted',v=>v.kind==='visitor'?'':v.inducted?'Yes':'No'],['Emergency contact',v=>v.emergencyName],['Emergency number',v=>v.emergencyPhone],
+    ['Didn\'t sign out',v=>forgotOut(v)?'Yes':''],['Location check',v=>!v.where?'':!v.where.shared?'Not shared':v.where.onSite?'On site':farTxt(v.where.d)+' away'],['Inducted',v=>v.kind==='visitor'?'':v.inducted?'Yes':'No'],['Emergency contact',v=>v.emergencyName],['Emergency number',v=>v.emergencyPhone],
     ['Skills card',v=>v.cscsType],['Card number',v=>v.cscsNo],['Card expiry',v=>v.cscsExpiry]];
   const cell=x=>{const s=String(x??'');return/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const csv=[cols.map(c=>c[0]),...[...list].reverse().map(v=>cols.map(c=>c[1](v)))].map(r=>r.map(cell).join(',')).join('\r\n');

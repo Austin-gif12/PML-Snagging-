@@ -121,6 +121,8 @@ Each job can have its own **Site Attendance** QR code. Staff: open the job → *
 
 In the app: a live **On site now** list, **🔥 Fire roll call** (prints in one tap), **Didn't sign out** (signed in on an earlier day, never signed out), and an **Attendance register** by date with **Excel / CSV** export and print. **Menu → 🪪 Site attendance** shows who's on site across every job. Each job can set its site manager contact, fire assembly point and site rules (shown on the sign in page and poster). **New QR code** stops the old poster working; **Turn off** closes sign in for that job.
 
+**On site check (stops people signing in from a photo of the QR code):** each job has a site pin and a distance (100 m to 1 km). Setting up attendance drops the pin on the postcode in the job's address automatically; **Use my location (on site)** moves it to exactly where you're standing. Choose **Only allow sign ins on site** (anyone further away, or who won't share their location, can't sign in), **Allow, but flag anyone off site** (they sign in but show 📍 in red on the register), or **Off**. Only the distance from the pin is saved, never where someone actually is. Signing out works from anywhere, so a forgotten sign out can always be fixed. Location can be faked by someone determined, but it stops the casual "sign in from the van / from home" case.
+
 The register is kept in its own `site_visits` table and is read live (it needs signal, and isn't kept on staff devices). The API creates the table itself if its login is allowed to; otherwise run the last part of `db/schema.sql` once in PlanetScale. `/api` says if it's missing.
 
 ## Offline

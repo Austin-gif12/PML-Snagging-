@@ -129,7 +129,7 @@ async function api(path, body) {
 }
 const show = html => { $('#app').innerHTML = html; window.scrollTo(0, 0); };
 function busy(btn, on, label) { btn.disabled = on; if (on) { btn.dataset.l = btn.textContent; btn.textContent = label || 'One moment…'; } else if (btn.dataset.l) btn.textContent = btn.dataset.l; }
-function err(where, e) { const old = $(where + ' .err'); old?.remove(); $(where).insertAdjacentHTML('beforeend', `<div class="err">${esc(e.message || e)}</div>`); $(where + ' .err').scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+function err(where, e) { const old = $(where + ' .err'); old?.remove(); $(where).insertAdjacentHTML('beforeend', `<div class="err">${e.html ? e.message : esc(e.message || e)}</div>`); $(where + ' .err').scrollIntoView({ block: 'center', behavior: 'smooth' }); }
 const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
 const rulesHTML = () => {
   const lines = String(SITE.rules || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
@@ -138,6 +138,30 @@ const rulesHTML = () => {
 const fireHTML = () => SITE.assembly ? `<div class="notice fire">🔥 <b>Fire assembly point:</b> ${esc(SITE.assembly)}</div>` : '';
 const contactHTML = () => SITE.contact ? `<div class="notice info">📞 <b>Site manager:</b> ${esc(SITE.contact)}</div>` : '';
 function wireTicks() { document.querySelectorAll('.tick input').forEach(i => { const l = i.closest('.tick'); const f = () => l.classList.toggle('on', i.checked); i.onchange = f; f(); }); }
+
+/* ── on site check ── */
+// If the job has a site pin, the phone's location goes with each sign in and the API checks it's near the site.
+function locate() {
+  return new Promise(res => {
+    if (!navigator.geolocation) return res({ failed: 'none' });
+    navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+      e => res({ failed: e.code === 1 ? 'denied' : 'unavailable' }),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+}
+const LOC_HELP = '<br><br><b>iPhone:</b> Settings › Privacy &amp; Security › Location Services › Safari Websites › While Using.<br><b>Android:</b> tap the padlock next to the web address › Permissions › Location › Allow.';
+async function signIn(btn, body) {
+  if (SITE.geo === 'off') return api('/in', body);
+  btn.textContent = '📍 Checking you\'re on site…';
+  const loc = await locate();
+  if (loc.failed && SITE.geo === 'block') throw Object.assign(new Error(loc.failed === 'denied'
+    ? 'Your phone blocked your location, so we can\'t check you\'re on site. Allow location for this page, then tap Sign in again.' + LOC_HELP
+    : 'We couldn\'t get your location. Check location is turned on, step outside if you can, and try again.'), { html: true });
+  btn.textContent = 'Signing you in…';
+  const { failed, ...where } = loc;
+  return api('/in', { ...body, ...where });
+}
 
 /* ── start ── */
 (async () => {
@@ -158,6 +182,7 @@ function home() {
     <button class="opt new" id="oNew"><span class="i">🆕</span><span class="tx"><b>First time on this site</b><span>New personnel. Your details, emergency contact and skills card. About 2 minutes.</span></span><span class="go">›</span></button>
     <button class="opt vis" id="oVis"><span class="i">👋</span><span class="tx"><b>Visitor</b><span>Meetings, inspections, deliveries and anyone not working on site.</span></span><span class="go">›</span></button>
     <button class="outlink" id="oOut">🚪 Leaving site? Sign out</button>
+    ${SITE.geo === 'block' ? '<div class="notice info">📍 Your phone will ask for your location when you sign in. It\'s only used to check you\'re on site.</div>' : ''}
     ${fireHTML()}
     <div class="foot">PML Fire Protection · Building Confidence.</div>`);
   $('#oRet').onclick = returning; $('#oNew').onclick = () => newPerson(); $('#oVis').onclick = visitor; $('#oOut').onclick = signOutOther;
@@ -180,7 +205,7 @@ function returning(prefill) {
         $('#go').hidden = true; $('#toNew').onclick = () => newPerson({ phone }); return;
       }
       confirmReturning(phone, r.person);
-    } catch (e) { busy(b, false); err('#c', e); }
+    } catch (e) { busy(b, false); if (e.code === 'off-site' || e.code === 'need-location') e.message = '📍 ' + e.message; err('#c', e); }
   };
   $('#go').onclick = go; $('#ph').onkeydown = e => e.key === 'Enter' && go(); $('#ph').focus();
 }
@@ -196,8 +221,8 @@ function confirmReturning(phone, p) {
   $('#bk').onclick = () => returning(phone);
   $('#go').onclick = async () => {
     const b = $('#go'); busy(b, true, 'Signing you in…');
-    try { const r = await api('/in', { kind: 'returning', phone, fit: $('#fit').checked, agreed: $('#ok').checked }); store.set(ME_KEY, { ...store.get(ME_KEY), phone }); done(r); }
-    catch (e) { busy(b, false); err('#c', e); }
+    try { const r = await signIn(b, { kind: 'returning', phone, fit: $('#fit').checked, agreed: $('#ok').checked }); store.set(ME_KEY, { ...store.get(ME_KEY), phone }); done(r); }
+    catch (e) { busy(b, false); if (e.code === 'off-site' || e.code === 'need-location') e.message = '📍 ' + e.message; err('#c', e); }
   };
 }
 
@@ -233,10 +258,10 @@ function newPerson(pre = {}) {
     const d = {}; document.querySelectorAll('#c [name]').forEach(i => d[i.name] = i.value.trim());
     const b = $('#go'); busy(b, true, 'Signing you in…');
     try {
-      const r = await api('/in', { kind: 'new', ...d, fit: $('#fit').checked, agreed: $('#ok').checked });
+      const r = await signIn(b, { kind: 'new', ...d, fit: $('#fit').checked, agreed: $('#ok').checked });
       const { medical, ...keep } = d; store.set(ME_KEY, keep); // handy on the next PML site; health info isn't kept on the phone
       done(r);
-    } catch (e) { busy(b, false); err('#c', e); }
+    } catch (e) { busy(b, false); if (e.code === 'off-site' || e.code === 'need-location') e.message = '📍 ' + e.message; err('#c', e); }
   };
 }
 
@@ -258,8 +283,8 @@ function visitor() {
   $('#go').onclick = async () => {
     const d = {}; document.querySelectorAll('#c [name]').forEach(i => d[i.name] = i.value.trim());
     const b = $('#go'); busy(b, true, 'Signing you in…');
-    try { const r = await api('/in', { kind: 'visitor', ...d, agreed: $('#ok').checked }); store.set(ME_KEY, { ...store.get(ME_KEY), name: d.name, company: d.company, phone: d.phone }); done(r); }
-    catch (e) { busy(b, false); err('#c', e); }
+    try { const r = await signIn(b, { kind: 'visitor', ...d, agreed: $('#ok').checked }); store.set(ME_KEY, { ...store.get(ME_KEY), name: d.name, company: d.company, phone: d.phone }); done(r); }
+    catch (e) { busy(b, false); if (e.code === 'off-site' || e.code === 'need-location') e.message = '📍 ' + e.message; err('#c', e); }
   };
 }
 
@@ -305,7 +330,7 @@ function signOutOther() {
   const go = async () => {
     const b = $('#go'); busy(b, true, 'Signing you out…');
     try { const r = await api('/out', { phone: $('#ph').value }); store.set(VISIT_KEY, null); signedOut(r.visit); }
-    catch (e) { busy(b, false); err('#c', e); }
+    catch (e) { busy(b, false); if (e.code === 'off-site' || e.code === 'need-location') e.message = '📍 ' + e.message; err('#c', e); }
   };
   $('#go').onclick = go; $('#ph').onkeydown = e => e.key === 'Enter' && go(); $('#ph').focus();
 }
